@@ -1,0 +1,3306 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<body>
+	<div id="base-div">
+		<div id="main-header" class="flex-row">
+			<div id="round-div">Round:<span id="round-count">1</span></div>
+			<div id="lives-div">Lives:<span id="lives-count">3</span></div>
+			<div id="money-div">Money:<span id="money-count">0</span></div>
+		</div>
+		<div id="shop">
+			<div id="shop-items"></div>
+			<button id="leave-shop-button">Next Round</button>
+		</div>
+		<div id="team-hero-shell" class="flex-row">
+			<div id="team-hero" class="team-div">
+			</div>
+			<div id="inventory-div" class="flex-col"><div>Inventory:</div></div>
+		</div>
+		<div id="team-enemy" class="team-div">
+		</div>
+		<div id="ready-bar">
+			<div id="team-hero-ready-bar"></div>
+			<div id="team-enemy-ready-bar"></div>
+		</div>
+		<div id="message-div"></div>
+	</div>
+	<div id="popup-backing">
+		<div id="popup-modal">
+			<div id="popup-modal-header"></div>
+			<div id="popup-modal-body"></div>
+			<div id="popup-modal-footer"></div>
+		</div>
+	</div>
+</body>
+<style>
+	#popup-backing {
+		display: none;
+		position: absolute;
+	}
+	#popup-backing.open {
+		z-index: 1000;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		width: 100%;
+		height: 100%;
+	}
+	#popup-backing.open.opaque {
+		background-color: rgba(200, 200, 200, .33);
+	}
+	#popup-modal {
+		background-color: white;
+		border: 1px solid gray;
+		padding: 20px;
+		box-shadow: 3px 4px 15px 0px #555555;
+	}
+	#base-div {
+		position:absolute;
+		top:0;
+		left:0;
+		width:800px;
+		height:800px;
+		background-color:white;
+		border: 2px solid gray;
+		display: flex;
+		flex-direction:column;
+		z-index:100;
+	}
+	.team-div {
+		display: flex;
+		gap: 30px;
+		padding: 0 20px;
+	}
+	.stat-border {
+		border: 1px solid gray;
+		height: 10px;
+	}
+	.hp-bar {
+		background-color: red;
+		height: 100%;
+	}
+	.energy-bar {
+		background-color: lightblue;
+		height: 100%;
+	}
+	.symbol-div, .flex-row {
+		display: flex;
+		flex-direction: row;
+	}
+	.flex-col {
+		display: flex;
+		flex-direction: column;
+	}
+	.bot-div {
+		width: 175px;
+		margin-bottom: 20px;
+		border: 1px solid black;
+		position: relative;
+	}
+	.bot-div.active {
+		animation-name: green-sheen;
+		animation-duration: 10500ms;
+		animation-iteration-count: infinite;
+		animation-timing-function: linear;
+		animation-delay: 200ms;
+		border: 1px solid green;
+		background-color: #dcebda;
+	}
+	.overheated .bot-sprite {
+		background-color: pink;
+	}
+	.overheated .ability-div:not(.auto-attack-div, .recharge-div) {
+		pointer-events: none;
+	}
+
+	.bot-div.rebooting {
+		background-color: #dbdbeb;
+	}
+	.reboot-spinner {
+		display: none;
+	}
+	.rebooting .reboot-spinner {
+		display: block;
+		width: 33px;
+		height: 33px;
+		border-radius: 50%;
+		position: absolute;
+		top: 50%;
+		left: 45%;
+		border-top: 2px solid #022dff;
+		border-right: 5px solid #022dff;
+		animation: spin 2s linear infinite;
+	}
+	@keyframes spin {
+		0% { transform: rotate(0deg); }
+		100% { transform: rotate(360deg); }
+	}
+
+	.bsod {
+		display: none;
+		background-color: blue;
+		color: white;
+		font-size: 9px;
+	}
+	.bot-div.dead:not(.damage) .bsod {
+		display: flex;
+		flex-direction: column;
+	}
+	.bot-div.dead:not(.damage) .stat-div, .bot-div.dead:not(.damage) .ability-row, .bot-div.dead:not(.damage) .ultimate-div {
+		display: none;
+	}
+	.bsod .bsod-title {
+		background-color: white;
+		color: blue;
+		align-self: center;
+	}
+	.ability-div, .recharge-div, .ultimate-div {
+		display: flex;
+		justify-content: space-between;
+		cursor: pointer;
+	}
+	.ability-div:hover, .recharge-div:hover {
+		background-color: grey;
+	}
+	.ultimate-div {
+		background-color: rgb(237, 220, 159);
+	}
+	.ultimate-div:hover {
+		background-color: yellow;
+	}
+	.ultimate-ready .ultimate-div {
+		background-image: linear-gradient(yellow, orange);
+	}
+	#ready-bar {
+		background-image: linear-gradient(to right, #ffe0e0 , #c6ffc5);
+		width: 100%;
+		height: auto;
+		display: flex;
+		flex-direction: column;
+		justify-content: space-around;
+	}
+	#team-hero-ready-bar, #team-enemy-ready-bar {
+		height: auto;
+		width: 100%;
+		display: flex;
+		flex-direction: column;
+	}
+	.badge-div {
+		display: flex;
+		flex-direction: column;
+		position: absolute;
+		background-color: #8f8fc1;
+		z-index: 30;
+		width: 75px;
+	}
+	.badge-bar.dead { display: none; }
+	.badge-div:hover { z-index: 35; }
+	.badge-bar { height: 40px; width: 100%; }
+	#message-div {
+		align-self: center;
+		margin-top: 10px;
+	}
+	.damage {
+		animation-name: damage;
+		animation-duration: 500ms;
+		animation-iteration-count: 1;
+		animation-timing-function: linear;
+	}
+	@keyframes damage {
+		0% {background-color:inherit;}
+		10%, 90% { transform: translate3d(-2px, 0, 0); }
+		20%, 80% { transform: translate3d(3px, 0, 0); }
+		30%, 70% { transform: translate3d(-4px, 0, 0); }
+		50% {background-color:red; transform: translate3d(-4px, 0, 0); }
+		40%, 60% { transform: translate3d(4px, 0, 0); }
+		100% {background-color:inherit;}
+	}
+	@keyframes green-sheen {
+		0% {background-color: #dcebda; background-image: none}
+		1% {background-image: linear-gradient(#dcebda, #dcebda, white)}
+		2% {background-image: linear-gradient(#dcebda, white, white)}
+		3% {background-image: linear-gradient(#dcebda, white, #dcebda)}
+		4% {background-image: linear-gradient(white, white, #dcebda)}
+		5% {background-image: linear-gradient(white, #dcebda, #dcebda)}
+		6% {background-image: none;}
+		100% {background-image: none}
+	}
+	.item {
+		cursor: pointer;
+		width: 50%;
+	}
+	.item:hover {
+		background-color: rgb(200, 200, 200);
+	}
+	#base-div.shop-open #teams-div {
+		display: none;
+	}
+	#base-div.shop-open #shop {
+		display: flex;
+	}
+	#shop { display: none; }
+	.battery-icon {
+		width: 1px;
+		height: 1px;
+		box-shadow: 1px 0 white, 2px 0 gray, 3px 0 white, 4px 0 gray, 5px 0 white,
+			1px 1px white, 2px 1px gray, 3px 1px gray, 4px 1px gray, 5px 1px white,
+			1px 2px white, 2px 2px black, 3px 2px black, 4px 2px black, 5px 2px white,
+			1px 3px white, 2px 3px black, 3px 3px yellow, 4px 3px black, 5px 3px white,
+			1px 4px white, 2px 4px black, 3px 4px yellow, 4px 4px black, 5px 4px white,
+			1px 5px white, 2px 5px black, 3px 5px black, 4px 5px black, 5px 5px white;
+	}
+</style>
+<script>
+
+const bots = [];
+const deadAllies = [];
+const deadEnemies = [];
+const items = [];
+const shopItems = [];
+let money = 0;
+const roundData = { currentRound: 1, maxRounds: 3 }
+const bossData = { bossType: null }
+const READY_THRESHOLD = 400;
+const END_OF_TURN_DELAY = 1000;
+const ENEMY = 'enemy';
+const HERO = 'hero';
+
+const teamSize = 3;
+
+const BOT_TYPES = {
+	HULK: 'hulk', ORACLE: 'oracle', HUNTER: 'hunter', SCOUT: 'scout', ENGINE: 'engine', RAGER: 'rager', GUARDIAN: 'guardian', OVERLORD: 'overlord',
+}
+const ENEMY_TYPES = { GRUNT: 'grunt', NUISANCE: 'nuisance', STABBER: 'stabber', OPPRESSOR: 'oppressor', BUTLER: 'butler' }
+const BOSS_TYPES = { STEEL_TITAN: 'steel titan' }
+const DAMAGE_TYPES = { METAL: 'metal', ENERGY: 'energy', RUST: 'rust', MAGNETIC: 'magnetic', HACK: 'hack' }
+const BUFF_TYPES = {
+	TAUNT: 'taunt', STEALTH: 'stealth', FAST: 'fast', RESIST_METAL: 'metal-resist', RESIST_ENERGY: 'energy-resist',
+	RESIST_RUST: 'rust-resist', RESIST_MAGNETIC: 'magnetic-resist', RESIST_HACK: 'hack-resist',
+}
+const DEBUFF_TYPES = {
+	TARGET_LOCK: 'target-lock', SLOW: 'slow', WEAK_TO_METAL: 'weak-to-metal',
+	WEAK_TO_ENERGY: 'weak-to-energy', WEAK_TO_RUST: 'weak-to-rust', WEAK_TO_MAGNETIC: 'weak-to-magnetic',
+	WEAK_TO_HACK: 'weak-to-hack', REBOOTING: 'rebooting'/* stun */, OVERHEATED: 'overheated'/* silence */
+}
+const ITEM_TYPES = {
+	BATTERY: 'battery', REPAIR_KIT: 'repair kit', HARDLIGHT_SHIELD: 'hardlight shield', MISSILE_BEACON: 'missile beacon',
+	ACCELERANT: 'accelerant', MICROWAVE_BEAM: 'microwave beam', 
+}
+const UPGRADE_TYPES = {
+	RUSTED_DAGGER: 'rusted dagger', LASER_SWORD: 'laser sword', SUPER_SPEED: 'super speed'
+}
+const ABILITY_TYPES = {
+	AUTO_ATTACK: 'auto-attack',
+	SINGLE_TARGET_ATTACK: 'single target attack',
+	AOE_ATTACK: 'area of effect attack',
+	TEAM_ATTACK: 'team attack',
+	SINGLE_TARGET_HEAL: 'single target heal',
+	AOE_HEAL: 'area of effect heal',
+	TEAM_HEAL: 'team heal',
+	SELF_HEAL: 'self heal',
+	SINGLE_TARGET_BUFF: 'single target buff',
+	AOE_BUFF: 'area of effect buff',
+	TEAM_BUFF: 'team buff',
+	SELF_BUFF: 'self buff',
+	SINGLE_TARGET_DEBUFF: 'single target debuff',
+	AOE_DEBUFF: 'area of effect debuff',
+	TEAM_DEBUFF: 'team debuff',
+	RECHARGE: 'recharge',
+	OTHER: 'other',
+}
+const INPUT_TYPES = {
+	ENEMY_TEAM: 'enemy team',
+	ALLY: 'ally',
+	ENEMY: 'enemy',
+	CUSTOM: 'custom',
+	AMOUNT: 'amount',
+	ARRAY: 'array',
+}
+/*
+ABILITY STRUCTURE
+	name: name of ability.
+	abilityType: from ABILITY_TYPES const.
+	description: description of ability displayed on hover.
+	cost: can be 0.
+	baseCooldown: number to be reset to upon use, can be 0.
+	startingCooldown: number to start with at beginning of combat.
+	execute: function to execute ability, passed user input retrieved based on inputType.
+	inputType (optional): from INPUT_TYPES const, determines value to get from user to pass into "execute" function
+	getCustomInput (optional): function called to get input from user if inputType == INPUT_TYPES.CUSTOM.
+*/
+
+class Bot{
+	constructor(type, health, energyLevel, maxEnergy, speed){
+		this.id = getId();
+		this.type = type;
+		this.maxHp = health;
+		this.hp = this.maxHp;
+		this.speed = speed;
+		this.totalHealingReceived = 0;
+		this.energyLevel = energyLevel;
+		this.energy = rollEnergy(energyLevel);
+		this.maxEnergy = maxEnergy;
+		this.queuedSelfBuffs = [];
+		this.queuedSelfDebuffs = [];
+		this.buffs = [];
+		this.debuffs = [];
+		this.damageDealt = 0;
+		this.damageTaken = 0;
+		this.healingReceived = 0;
+		this.ready = 0;
+		this.startOfTurn = [];
+		this.endOfTurn = [];
+		return this;
+	}
+	// used to track which bot will act next.  advancement is based on SPEED stat, is "ready" when over READY_THRESHOLD.
+	advanceReady(){
+		const isFast = this.buffs.includes(BUFF_TYPES.FAST);
+		const isSlow = this.debuffs.includes(BUFF_TYPES.SLOW);
+		const speedBonus = isFast ? (Math.floor(this.speed / 3)) : 0;
+		const slowPenalty = isSlow ? 10 : 0;
+		const speedRoll = abilityRoll(this.speed, speedBonus - slowPenalty);
+		this.ready += Math.max(speedRoll, 10);
+	}
+	get isReady(){ return this.ready >= READY_THRESHOLD; }
+	spendEnergy(amount){
+		this.energy -= amount;
+	}
+	gainEnergy(amount){
+		const amountToGain = Math.min(this.maxEnergy - this.energy, amount);
+		this.energy += amountToGain;
+		return amountToGain;
+	}
+	heal(amount){
+		var overHeal = Math.max(this.hp + amount - this.maxHp, 0);
+		var totalHealingReceived = amount - overHeal;
+		this.healingReceived += totalHealingReceived;
+		this.hp += totalHealingReceived;
+		this.refreshStatDivs();
+		this.totalHealingReceived += totalHealingReceived;
+		return totalHealingReceived;
+	}
+	buff(type,amount){
+		// cannot stealth if bot has target-lock
+		if (type == BUFF_TYPES.STEALTH && this.debuffs.includes(DEBUFF_TYPES.TARGET_LOCK)) { return; }
+		for (var i = 0; i < amount; i++) { this.buffs.push(type); }
+	}
+	debuff(type,amount){
+		for (var i = 0; i < amount; i++) { this.debuffs.push(type); }
+		if (type == DEBUFF_TYPES.REBOOTING) { this.div.classList.add('rebooting'); }
+		if (type == DEBUFF_TYPES.OVERHEATED) { this.div.classList.add('overheated'); }
+		// clear stealth if applying target lock
+		if (type == DEBUFF_TYPES.TARGET_LOCK) { this.buffs = this.buffs.filter(x => x != BUFF_TYPES.STEALTH); }
+	}
+	get overheated(){ return this.debuffs.includes(DEBUFF_TYPES.OVERHEATED); }
+	// self-buffs are applied at the end of turn to avoid ticking them down during same turn
+	selfBuff(type, amount){
+		for (var i = 0; i < amount; i++) { this.queuedSelfBuffs.push(type); }
+	}
+	selfDebuff(type, amount){
+		for (var i = 0; i < amount; i++) { this.queuedSelfDebuffs.push(type); }
+	}
+	// cleanse debuffs
+	cleanse(type){ this.debuffs = this.debuffs.filter(db => db.type != type); }
+	cleanseAll(){ this.debuffs = []; }
+	// dispel buffs
+	dispel(type){ this.buffs = this.buffs.filter(db => db.type != type); }
+	dispelAll(){ this.buffs = []; }
+	// returns object with damage attempted, actual damage applied, and if unit was killed
+	takeDamage(amount,type){
+		var amountToApply = amount;
+		if (this.isResistantTo(type)){ amountToApply = amountToApply / 2; }
+		if (this.isWeakTo(type)){ amountToApply = amountToApply * 2; }
+		// round to whole number
+		amountToApply = Math.ceil(amountToApply);
+		this.damageTaken += amountToApply;
+		this.hp = Math.max(0, this.hp - amountToApply);
+		this.refreshStatDivs();
+		damageFlash(this.div);
+		if (this.hp == 0) {
+			this.death();
+		}
+		return {
+			amountApplied: amountToApply,
+			initialAmount: amount,
+			killed: this.hp == 0,
+		}
+	}
+	dealDamage(target,amount,type){
+		const damageResult = target.takeDamage(amount, type);
+		this.damageDealt += damageResult.amountApplied;
+		return damageResult;
+	}
+	isResistantTo(damageType){
+		var associatedBuff = getAssociatedBuff(damageType);
+		return this.buffs.includes(associatedBuff);
+	}
+	isWeakTo(damageType){
+		var associatedDebuff = getAssociatedDebuff(damageType);
+		return this.debuffs.includes(associatedDebuff);
+	}
+	get ultimateReady() { return this.ultimate.currentCooldown < 1; }
+	get readyAbilities() { 
+		var ready = [];
+		if (this.ultimate && this.ultimate.currentCooldown < 1) { ready.push(this.ultimate) }
+		this.abilities.forEach(a => { if (a.currentCooldown < 1){ ready.push(a) } })
+		return ready;
+	}
+	// attempts to use ability, returns object with success bool and result/error message
+	async useAbility(id){
+		var result = {success: false, message: ''}
+		var selectedAbility = null;
+		if (this.ultimate.id == id) { selectedAbility = this.ultimate; }
+		else { selectedAbility = this.abilities.find(a => a.id == id); }
+		console.log(selectedAbility, selectedAbility.customRequirement);
+		if (!selectedAbility) {
+			result.message = `Could not find ability ${id} on bot ${this.name}.`;
+		} else if (this.overheated && selectedAbility.abilityType != ABILITY_TYPES.AUTO_ATTACK) {
+			result.message = 'While overheated, bots may only use autoattacks or recharge.';
+		} else if (selectedAbility.cost > this.energy) { 
+			result.message = `${this.name} does not have enough energy to use ${selectedAbility.name}.`
+		} else if (selectedAbility.currentCooldown > 0) {
+			result.message = `${selectedAbility.name} is still on cooldown.`;
+		} else if (selectedAbility.customRequirement && !selectedAbility.customRequirementIsMet(this)) {
+			result.message = selectedAbility.customRequirementMessage;
+		} else if (selectedAbility.inputType){
+			await executeAbilityWithInput(selectedAbility, this)
+				.then((response) => {
+					result = response;
+				})
+				.catch((e) => {
+					console.log(e);
+					result = { message: e.message, success: false };
+				})
+		} else {
+			result.message = selectedAbility.execute();
+			result.success = true;
+		}
+		setMessage(result.message);
+		if (result.success) {
+			this.tickDownCooldowns();
+			this.tickDownEffects();
+			selectedAbility.currentCooldown = selectedAbility.baseCooldown;
+			this.turnCompleted(result);
+		}
+	}
+	// spend turn gaining energy and ticking down effects and cooldowns
+	recharge(){
+		var gainedEnergy = rollEnergy(this.energyLevel);
+		var excessEnergy = Math.max((gainedEnergy + this.energy) - this.maxEnergy, 0);
+		this.energy = Math.min(this.maxEnergy, gainedEnergy + this.energy);
+		this.tickDownEffects();
+		this.tickDownCooldowns();
+		this.refreshStatDivs();
+		setMessage(`${this.name} recharged and gained ${gainedEnergy - excessEnergy} energy.`);
+		this.turnCompleted();
+	}
+	// ticks down buffs and debuffs
+	tickDownEffects(){
+		var uniqueDebuffs = this.debuffs.reduce((acc,val)=> { if (!acc.includes(val)){acc.push(val)};  return acc; }, []);
+		uniqueDebuffs.forEach(d => removeItemFromArray(d, this.debuffs));
+		if (!this.debuffs.includes(DEBUFF_TYPES.REBOOTING)) {
+			this.div.classList.remove('rebooting');
+		}
+		if (!this.debuffs.includes(DEBUFF_TYPES.OVERHEATED)) {
+			this.div.classList.remove('overheated');
+		}
+		var uniqueBuffs = this.buffs.reduce((acc,val)=> { if (!acc.includes(val)){acc.push(val)};  return acc; }, []);
+		uniqueBuffs.forEach(d => removeItemFromArray(d, this.buffs));
+	}
+	// ticks down all ability cooldowns including ultimate
+	tickDownCooldowns(){
+		this.abilities.forEach(a => {
+			a.currentCooldown = Math.max(0, a.currentCooldown - 1);
+			this.refreshCooldownDiv(a.id);
+		});
+		this.ultimate.currentCooldown = Math.max(0, this.ultimate.currentCooldown - 1);
+		this.refreshCooldownDiv(this.ultimate.id);
+	}
+	// calls ui refresh methods
+	refreshUi(){
+		this.refreshStatDivs();
+		this.abilities.forEach(a => this.refreshCooldownDiv(a.id));
+		this.refreshCooldownDiv(this.ultimate.id);
+		if (this.ultimateReady){
+			this.div.classList.add('ultimate-ready');
+		} else { this.div.classList.remove('ultimate-ready'); }
+	}
+	// updates hp, energy, and effect divs with current info
+	refreshStatDivs(){
+		var hpDiv = this.div.querySelector('.hp-div');
+		hpDiv.querySelector('.hp-bar').style.width = ((this.hp / this.maxHp) * 100) + '%';
+		hpDiv.querySelector('.stat-readout').innerText = this.hp + '/' + this.maxHp;
+		var energyDiv = this.div.querySelector('.energy-div');
+		energyDiv.querySelector('.energy-bar').style.width = ((this.energy / this.maxEnergy) * 100) + '%';
+		energyDiv.querySelector('.stat-readout').innerText = this.energy + '/' + this.maxEnergy;
+		var symbolDiv = this.div.querySelector('.symbol-div');
+		symbolDiv.childNodes.forEach(c => c.remove());
+		setSymbols(symbolDiv, this);
+	}
+	// updates an ability's cooldown div with current info
+	refreshCooldownDiv(abilityId){
+		let foundAbility = (abilityId == this.ultimate.id) ? this.ultimate : this.abilities.find(a => a.id == abilityId);
+		var abilityCooldownDiv = this.div.querySelector(`#cooldown-div-${abilityId}`);
+		abilityCooldownDiv.innerText = foundAbility.currentCooldown;
+	}
+	turnCompleted(){
+		this.ready = 0;
+		this.div.classList.remove('active');
+		this.div.classList.add('inactive');
+		if (this.queuedSelfBuffs.length){
+			this.queuedSelfBuffs.forEach(b => this.buff(b,1));
+			this.queuedSelfBuffs = [];
+		}
+		if (this.queuedSelfDebuffs.length){
+			this.queuedSelfDebuffs.forEach(d => this.debuff(d,1));
+			this.queuedSelfDebuffs = [];
+		}
+		if (this.endOfTurn.length) { this.endOfTurn.forEach(x => x.execute(this)); }
+		refreshAllBotUis();
+		setTimeout(turnCompleted, END_OF_TURN_DELAY);
+	}
+	// effectively passes the bot's turn
+	reboot(){
+		this.tickDownCooldowns();
+		this.tickDownEffects();
+		const result = {message: `${this.name} rebooted.`, success: true};
+		this.turnCompleted(result);
+	}
+	// shows dead bot in UI
+	death(){
+		this.div.classList.add('dead');
+		document.getElementById(this.id + '-badge-bar').classList.add('dead');
+		this.ready = 0;
+		if (this.isEnemy) { deadEnemies.push(this); } else { deadAllies.push(this); }
+	}
+}
+
+class Hero extends Bot {
+	constructor(type, health, energyLevel, maxEnergy, speed){
+		super(type, health, energyLevel, maxEnergy, speed);
+		this.team = HERO;
+	}
+}
+
+class Enemy extends Bot {
+	constructor(type, health, energyLevel, maxEnergy, speed){
+		super(type, health, energyLevel, maxEnergy, speed);
+		this.team = ENEMY;
+		this.isEnemy = true;
+	}
+	// set empty method to hide abilities from user
+	refreshCooldownDiv(){}
+	async takeTurn() {
+		// super.takeTurn() called by inheritors will (by design) cause a brief delay between turns
+		return await sleep(1000);
+	}
+	death(){
+		super.death();
+		if (this.bounty){
+			setMoney(money + this.bounty);
+		}
+	}
+}
+
+class Boss extends Enemy {
+	constructor(type, health, energyLevel, maxEnergy, speed){
+		super(type, health, energyLevel, maxEnergy, speed);
+		this.isBoss = true;
+	}
+}
+
+class Nuisance extends Enemy {
+	constructor() {
+		const health = 155, energyLevel = 30, maxEnergy = 20, speed = 18;
+		super(ENEMY_TYPES.NUISANCE, health, energyLevel, maxEnergy, speed);
+		this.name = `Nuisance ${this.id}`;
+		this.bounty = rollDie(8) + 2;
+		this.currentTarget = 0;
+		this.abilities = [
+			{
+				name: 'Drain',
+				description: `Absorb energy from target, dealing 2d10 ${DAMAGE_TYPES.ENERGY} damage and applying ${DEBUFF_TYPES.WEAK_TO_ENERGY} x2.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_DEBUFF,
+				cost: 5,
+				baseCooldown: 4,
+				currentCooldown: 0,
+				execute: () => {
+					const target = getBot(this.currentTarget);
+					this.spendEnergy(4);
+					const damage = getDiceValueTotal(10, 2);
+					const dmgResult = this.dealDamage(target, damage, DAMAGE_TYPES.ENERGY);
+					this.damageDealt += dmgResult.amountApplied;
+					target.debuff(DEBUFF_TYPES.WEAK_TO_ENERGY, 2);
+					const energyDrained = Math.min(target.energy, 5);
+					target.energy -= energyDrained;
+					target.refreshStatDivs();
+					this.energy = Math.min(this.maxEnergy, this.energy + energyDrained);
+					return `${this.name} drained ${energyDrained} energy from ${target.name}, dealing ${dmgResult.amountApplied} damage and applying ${DEBUFF_TYPES.WEAK_TO_ENERGY} x2.`;
+				}
+			},
+			{
+				name: 'Force Reset',
+				description: `Purge buffs from target, dealing 1d10 ${DAMAGE_TYPES.HACK} damage per buff type cleansed.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_DEBUFF,
+				cost: 5,
+				baseCooldown: 4,
+				currentCooldown: 2,
+				execute: () => {
+					const target = getBot(this.currentTarget);
+					this.spendEnergy(2);
+					const numberOfBuffs = target.buffs.reduce((acc, val) => {
+						if (!acc.includes(val)) { acc.push(val); }
+						return acc;
+					}, []).length;
+					target.buffs = [];
+					const damage = getDiceValueTotal(10, numberOfBuffs);
+					const dmgResult = this.dealDamage(target, damage, DAMAGE_TYPES.HACK);
+					this.damageDealt += dmgResult.amountApplied;
+					return `${this.name} reset ${target.name}, cleansing ${numberOfBuffs} buffs and dealing ${dmgResult.amountApplied} ${DAMAGE_TYPES.HACK} damage.`;
+				}
+			},
+			{
+				name: 'Corroded Wound',
+				abilityType: ABILITY_TYPES.AUTO_ATTACK,
+				description: `Strike target for 2d8 ${DAMAGE_TYPES.METAL} damage, plus 2d8 ${DAMAGE_TYPES.RUST} damage if target is debuffed.`,
+				cost: 0,
+				baseCooldown: 0,
+				currentCooldown: 0,
+				id: getId(),
+				execute: () => {
+					console.log('corroding wound');
+					const target = getBot(this.currentTarget);
+					const targetIsDebuffed = target.debuffs.length > 0;
+					const metalDamage = getDiceValueTotal(10, 2);
+					const rustDamage = getDiceValueTotal(10, 2);
+					const metalResult = this.dealDamage(target, metalDamage, DAMAGE_TYPES.METAL);
+					this.damageDealt += metalResult.amountApplied;
+					let rustResult = null;
+					if (targetIsDebuffed) {
+						rustResult = this.dealDamage(target, rustDamage, DAMAGE_TYPES.RUST);
+						this.damageDealt += rustResult.amountApplied;
+					}
+					return `${this.name} strikes ${target.name}, dealing ${metalResult.amountApplied} ${DAMAGE_TYPES.METAL} damage${targetIsDebuffed ? ` and ${rustResult.amountApplied} ${DAMAGE_TYPES.RUST} damage` : ''}.`;
+				}
+			}
+		];
+		this.ultimate = {
+			name: 'The Blue Curse',
+			description: `Make the entire opposition weak to all damage for 2 rounds and apply ${DEBUFF_TYPES.SLOW} x1.`,
+			abilityType: ABILITY_TYPES.TEAM_DEBUFF,
+			cost: 0,
+			baseCooldown: 9,
+			currentCooldown: 9,
+			id: getId(),
+			execute: () => {
+				const targets = getLivingTeamBots(HERO);
+				targets.forEach(x => {
+					x.debuff(DEBUFF_TYPES.WEAK_TO_METAL, 2);
+					x.debuff(DEBUFF_TYPES.WEAK_TO_RUST, 2);
+					x.debuff(DEBUFF_TYPES.WEAK_TO_HACK, 2);
+					x.debuff(DEBUFF_TYPES.WEAK_TO_ENERGY, 2);
+					x.debuff(DEBUFF_TYPES.WEAK_TO_MAGNETIC, 2);
+					x.debuff(DEBUFF_TYPES.SLOW, 1);
+				});
+				return `${this.name} puts the Blue Curse on the opposing team, weakening for 2 rounds and applying ${DEBUFF_TYPES.SLOW} x1.`;
+			}
+		};
+		this.div = getBotDiv(this);
+		document.getElementById('team-' + ENEMY).append(this.div);
+		createReadyBadge(this);
+		this.refreshStatDivs();
+	}
+	resetTargetWithMostBuffs(targetable){
+		try {
+		const forceResetAbility = this.abilities.find(x => x.name == 'Force Reset');
+		const targetWithMostBuffs = targetable.sort((a,b) => b.buffs.length - a.buffs.length)[0];
+		this.currentTarget = targetWithMostBuffs.id;
+		const result = this.useAbility(forceResetAbility.id);
+		console.log(result);
+		return result;
+		} catch (err) { console.error(err) }
+	}
+	async takeTurn(){
+		await super.takeTurn();
+		if (this.ultimateReady && !this.overheated) {
+			return this.useAbility(this.ultimate.id);
+		}
+		const targetable = getTargetable(HERO);
+		if (targetable.length < 1) { return this.recharge(); }
+		const forceResetAbility = this.abilities.find(x => x.name == 'Force Reset');
+		// if target has 3 or more buffs, prioritize reset
+		if (!this.overheated && targetable.some(x => x.buffs.length > 2) && forceResetAbility.currentCooldown == 0 && this.energy >= forceResetAbility.cost){
+			return this.resetTargetWithMostBuffs(targetable);
+		}
+		const drainAbility = this.abilities.find(x => x.name == 'Drain');
+		if (!this.overheated && drainAbility.currentCooldown == 0 && this.energy >= drainAbility.cost) {
+			const targetWithMostEnergy = targetable.sort((a,b) => b.energy - a.energy)[0];
+			this.currentTarget = targetWithMostEnergy.id;
+			return this.useAbility(drainAbility.id);
+		}
+		// if target has 2 or more buffs, prioritize reset again
+		if (!this.overheated && targetable.some(x => x.buffs.length > 1) && forceResetAbility.currentCooldown == 0 && this.energy >= forceResetAbility.cost){
+			return this.resetTargetWithMostBuffs(targetable);
+		}
+		if (this.energy <= 3 && flipCoin()) { return this.recharge(); }
+		const targetsWithMostDebuffs = targetable.reduce((acc,val) => {
+			if (!acc.length) { return [val]; }
+			if (acc[0].debuffs.length < val.debuffs.length) { return [val]; }
+			if (acc[0].debuffs.length == val.debuffs.length) { acc.push(val); }
+			return acc;
+		}, []);
+		this.currentTarget = getRandomVal(targetsWithMostDebuffs).id;
+		const autoAttack = this.abilities.find(x => x.name == 'Corroded Wound');
+		return this.useAbility(autoAttack.id);
+	}
+}
+
+class Stabber extends Enemy {
+	constructor(){
+		const health = 125, energyLevel = 16, maxEnergy = 15, speed = 30;
+		super(ENEMY_TYPES.STABBER, health, energyLevel, maxEnergy, speed);
+		this.name = `Stabber ${this.id}`;
+		this.bounty = rollDie(10) + 2;
+		this.currentTarget = 0;
+		this.passive = `Starts with ${BUFF_TYPES.STEALTH} x1`;
+		this.buffs = [BUFF_TYPES.STEALTH];
+		this.abilities = [
+			{
+				name: 'Skulk',
+				description: `Gain ${BUFF_TYPES.STEALTH} x2.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SELF_BUFF,
+				cost: 2,
+				baseCooldown: 4,
+				currentCooldown: 4,
+				execute: () => {
+					this.spendEnergy(2);
+					this.selfBuff(BUFF_TYPES.STEALTH, 2);
+					return `${this.name} skulks in the shadows, gaining ${BUFF_TYPES.STEALTH} x2.`;
+				},
+			},
+			{
+				name: 'Disrupt the Core',
+				description: `Slip a magnet into a target's system, dealing 4d6 ${DAMAGE_TYPES.MAGNETIC} damage and applying ${DEBUFF_TYPES.SLOW} x2.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGE_TARGET_DEBUFF,
+				cost: 3,
+				baseCooldown: 3,
+				currentCooldown: 3,
+				execute: () => {
+					const target = getBot(this.currentTarget);
+					this.spendEnergy(3);
+					target.debuff(DEBUFF_TYPES.SLOW, 2);
+					const dmg = getDiceValueTotal(6, 4);
+					const dmgResult = this.dealDamage(target, dmg, DAMAGE_TYPES.MAGNETIC);
+					this.damageDealt += dmgResult.amountApplied;
+					return `${this.name} slipped a magnet into the system of ${target.name}, dealing ${dmgResult.amountApplied} ${DAMAGE_TYPES.MAGNETIC} damage and applying ${DEBUFF_TYPES.SLOW} x2.`;
+				},
+			},
+			{
+				name: 'Jab',
+				description: `2d8 ${DAMAGE_TYPES.METAL} damage.  If has ${BUFF_TYPES.STEALTH}, also deals 2d8 ${DAMAGE_TYPES.MAGNETIC} damage.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.AUTO_ATTACK,
+				cost: 0,
+				baseCooldown: 0,
+				currentCooldown: 0,
+				execute: () => {
+					const target = getBot(this.currentTarget);
+					const metalDamage = getDiceValueTotal(8,2);
+					const metalResult = this.dealDamage(target, metalDamage, DAMAGE_TYPES.METAL);
+					this.damageDealt += metalResult.amountApplied;
+					let magResult = null;
+					if (this.buffs.includes(BUFF_TYPES.STEALTH)) {
+						const magDamage = getDiceValueTotal(8,2);
+						magResult = this.dealDamage(target, magDamage, DAMAGE_TYPES.MAGNETIC);
+						this.damageDealt += magResult.amountApplied;
+					}
+					return `${this.name} jabbed ${target.name} for ${metalResult.amountApplied} ${DAMAGE_TYPES.METAL} damage${magResult ? ` and ${magResult.amountApplied} ${DAMAGE_TYPES.MAGNETIC} damage` : ''}.`;
+				}
+			}
+		];
+		this.ultimate = {
+			name: 'Unseen Blade',
+			description: `Hit target for 8d6 + 12 ${DAMAGE_TYPES.METAL} damage.  If this bot has ${BUFF_TYPES.STEALTH}, first apply ${DEBUFF_TYPES.WEAK_TO_METAL} x1.`,
+			id: getId(),
+			abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+			damageTypes: [DAMAGE_TYPES.METAL],
+			execute: ()=> {
+				const target = getBot(this.currentTarget);
+				const isStealthed = this.buffs.includes(BUFF_TYPES.STEALTH);
+				if (isStealthed) {
+					target.debuff(DEBUFF_TYPES.WEAK_TO_METAL, 1);
+				}
+				const dmg = getDiceValueTotal(6, 8);
+				const dmgResult = this.dealDamage(target, dmg, DAMAGE_TYPES.METAL);
+				this.damageDealt += dmgResult.amountApplied;
+				return `${this.name}${isStealthed ? ` applied ${DEBUFF_TYPES.WEAK_TO_METAL} x1, then` : ''} dealt ${dmgResult.amountApplied} to ${target.name}.`;
+			},
+			currentCooldown: 9,
+			baseCooldown: 9,
+		}
+		this.div = getBotDiv(this);
+		document.getElementById('team-' + ENEMY).append(this.div);
+		createReadyBadge(this);
+		this.refreshStatDivs();
+	}
+	async takeTurn(){
+		await super.takeTurn();
+		let targetable = getTargetable(HERO).map(x => {
+			// assign custom weak props for this function
+			x.weakToMagnetic = this.debuffs.includes(DEBUFF_TYPES.WEAK_TO_MAGNETIC);
+			x.weakToMetal = this.debuffs.includes(DEBUFF_TYPES.WEAK_TO_METAL);
+			return x;
+		});
+		const isStealthed = this.buffs.includes(BUFF_TYPES.STEALTH);
+		if (this.ultimateReady && !this.overheated && targetable.length) {
+			// target healthiest weak-to-metal if not stealthed
+			if (!isStealthed && targetable.some(x => x.weakToMetal)) {
+				this.currentTarget = targetable
+					.filter(x => x.weakToMetal)
+					.sort((a,b) => b.hp - a.hp)[0].id;
+			} else if (isStealthed) {
+			// target healthiest non-weak-to-metal if stealthed
+				this.currentTarget = targetable
+					.filter(x => !x.weakToMetal)
+					.sort((a,b) => b.hp - a.hp)[0].id;
+			} else {
+			// otherwise, try to kill weakest enemy
+				this.currentTarget = targetable
+					.sort((a,b) => a.hp - b.hp)[0].id;
+			}
+			return this.useAbility(this.ultimate.id);
+		}
+		// use stealth if available and needed
+		const stealthAbility = this.abilities.find(x => x.name == 'Skulk');
+		if (!isStealthed && !this.overheated && stealthAbility.currentCooldown == 0 && this.energy >= stealthAbility.cost && !this.debuffs.includes(DEBUFF_TYPES.TARGET_LOCK)) {
+			return this.useAbility(stealthAbility.id);
+		}
+		if (!targetable.length) { return this.recharge(); }
+		const lowReady = targetable.filter(x => x.ready <= (READY_THRESHOLD / 4));
+		// use magTrapAbility if lowReady targets
+		const magTrapAbility = this.abilities.find(x => x.name == 'Disrupt the Core');
+		console.log(lowReady, magTrapAbility.currentCooldown);
+		if (!this.overheated && lowReady.length && magTrapAbility.currentCooldown == 0 && this.energy >= magTrapAbility.cost) {
+			// target weak-to-mag, lowReady bots
+			this.currentTarget = lowReady
+				.sort((a,b) => {
+					if (a.weakToMagnetic && !b.weakToMagnetic) { return -1; }
+					if (!a.weakToMagnetic && b.weakToMagnetic) { return 1; }
+					return a.ready - b.ready;
+				})[0].id;
+			return this.useAbility(magTrapAbility.id);
+		}
+		if (this.energy <= 4 && flipCoin()) { return this.recharge(); }
+		this.currentTarget = targetable
+			.sort((a,b) => {
+				if (a.weakToMetal && !b.weakToMetal) { return -1; }
+				if (!a.weakToMetal && b.weakToMetal) { return 1; }
+				if (isStealthed && a.weakToMagnetic && !b.weakToMagnetic) { return -1; }
+				if (isStealthed && !a.weakToMagnetic && b.weakToMagnetic) { return 1; }
+				return a.hp - b.hp;
+			})[0].id;
+		const autoAbility = this.abilities.find(x => x.name == 'Jab');
+		return this.useAbility(autoAbility.id);
+	}
+}
+
+class Grunt extends Enemy {
+	constructor() {
+		const health = 200, energyLevel = 20, maxEnergy = 20, speed = 15;
+		super(ENEMY_TYPES.GRUNT, health, energyLevel, maxEnergy, speed);
+		this.name = `Grunt ${this.id}`;
+		this.bounty = rollDie(6) + 2;
+		this.currentTarget = 0;
+		this.abilities = [
+			{
+				name: 'Finisher',
+				description: 'Attack low-health enemy.',
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+				cost: 5,
+				baseCooldown: 0,
+				currentCooldown: 0,
+				execute: () => {
+					const target = getBot(this.currentTarget);
+					this.spendEnergy(3);
+					var damage = getDiceValueTotal(10,4);
+					var result = this.dealDamage(target, damage, DAMAGE_TYPES.METAL);
+					this.damageDealt += result.amountApplied;
+					return `${this.name} tried to finish ${target.name} by hitting for ${result.amountApplied} ${DAMAGE_TYPES.METAL} damage.`;
+				}
+			},
+			{
+				name: 'Poke',
+				description: 'Attack random enemy.',
+				id: getId(),
+				abilityType: ABILITY_TYPES.AUTO_ATTACK,
+				cost: 0,
+				baseCooldown: 0,
+				currentCooldown: 0,
+				execute: () => {
+					const target = getBot(this.currentTarget);
+					var damage = getDiceValueTotal(5,4);
+					var result = this.dealDamage(target, damage, DAMAGE_TYPES.METAL);
+					this.damageDealt += result.amountApplied;
+					return `${this.name} poked ${target.name} for ${result.amountApplied} ${DAMAGE_TYPES.METAL} damage.`;
+				}
+			}
+		];
+		this.ultimate = {
+			name: 'Gatling Beams',
+			description: `Hit all enemies for ${DAMAGE_TYPES.ENERGY} damage`,
+			id: getId(),
+			abilityType: ABILITY_TYPES.TEAM_ATTACK,
+			damageTypes: [DAMAGE_TYPES.ENERGY],
+			execute: ()=> {
+				const targets = getLivingTeamBots(HERO);
+				let totalDamage = 0;
+				targets.forEach(t => {
+					var damage = getDiceValueTotal(8,5);
+					var result = this.dealDamage(t, damage, DAMAGE_TYPES.ENERGY);
+					totalDamage += result.amountApplied;
+				})
+				return `${this.name} dealt a total of ${totalDamage} to team ${HERO}`;
+			},
+			currentCooldown: 6,
+			baseCooldown: 6,
+		}
+		this.div = getBotDiv(this);
+		document.getElementById('team-' + ENEMY).append(this.div);
+		createReadyBadge(this);
+		this.refreshStatDivs();
+	}
+	async takeTurn(){
+		await super.takeTurn();
+		if (this.ultimateReady && !this.overheated) {
+			return this.useAbility(this.ultimate.id);
+		}
+		const targetable = getTargetable(HERO);
+		if (targetable.length < 1) { return this.recharge(); }
+		if (!this.overheated && targetable.some(x => x.hp <= (x.maxHp / 3))) {
+			// low-health enemy is targetable
+			if (this.energy >= 3) {
+				this.currentTarget = targetable.find(x => x.hp <= (x.maxHp / 3)).id;
+				const finisher = this.abilities.find(a => a.name == 'Finisher').id;
+				return this.useAbility(finisher);
+			} else if (this.energy != this.maxEnergy) {
+				return this.recharge();
+			} else {
+				this.currentTarget = getRandomVal(targetable).id;
+			}
+		} else {
+			if(targetable.every(x => x.buffs.includes(BUFF_TYPES.RESIST_METAL) && !x.debuffs.includes(DEBUFF_TYPES.WEAK_TO_METAL))) { return this.recharge(); }
+			if (targetable.some(x => x.debuffs.includes(DEBUFF_TYPES.WEAK_TO_METAL))) {
+				const weakToMetal = targetable.filter(x => x.debuffs.includes(DEBUFF_TYPES.WEAK_TO_METAL));
+				this.currentTarget = getRandomVal(weakToMetal).id;
+			} else {
+				this.currentTarget = getRandomVal(targetable).id;
+			}
+		}
+		const pokeId = this.abilities.find(a => a.name == 'Poke').id;
+		return this.useAbility(pokeId);
+	}
+}
+
+class Butler extends Enemy {
+	constructor() {
+		const health = 145, energyLevel = 35, maxEnergy = 25, speed = 25;
+		super(ENEMY_TYPES.BUTLER, health, energyLevel, maxEnergy, speed);
+		const butlerId = this.id;
+		this.name = `Butler ${this.id}`;
+		this.bounty = rollDie(5) + 2;
+		this.currentTarget = 0;
+		this.abilities = [
+			{
+				name: 'Buff Armor',
+				description: `Grant ${BUFF_TYPES.RESIST_METAL} x2 and ${BUFF_TYPES.RESIST_ENERGY} x2 to an ally.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_BUFF,
+				cost: 4,
+				baseCooldown: 3,
+				currentCooldown: 3,
+				execute: () => {
+					const allies = getTeamBots(ENEMY);
+					let selectedAlly;
+					if (allies.some(x => x.buffs.includes(DEBUFF_TYPES.TARGET_LOCK))) {
+						const targeted = allies.filter(x => x.buffs.includes(DEBUFF_TYPES.TARGET_LOCK));
+						selectedAlly = getRandomVal(targeted);
+					} else if (allies.some(x => x.buffs.includes(BUFF_TYPES.TAUNT))) {
+						const taunting = allies.filter(x => x.buffs.includes(BUFF_TYPES.TAUNT));
+						selectedAlly = getRandomVal(taunting);
+					} else {
+						selectedAlly = getRandomVal(allies);
+					}
+					this.spendEnergy(4);
+					selectedAlly.buff(BUFF_TYPES.RESIST_METAL, 2);
+					selectedAlly.buff(BUFF_TYPES.RESIST_ENERGY, 2);
+					return `${this.name} buffed the armor of ${selectedAlly.name}, granting them ${BUFF_TYPES.RESIST_METAL} x2 and ${BUFF_TYPES.RESIST_ENERGY} x2.`;
+				}
+			},
+			{
+				name: 'Whispered Warning',
+				description: `Apply ${DEBUFF_TYPES.TARGET_LOCK} to a stealthed enemy.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_DEBUFF,
+				cost: 2,
+				baseCooldown: 2,
+				currentCooldown: 0,
+				execute: () => {
+					const target = getBot(this.currentTarget);
+					target.debuff(DEBUFF_TYPES.TARGET_LOCK, 2);
+					this.spendEnergy(2);
+					return `${this.name} spotted ${target.name} trying to hide and applied ${DEBUFF_TYPES.TARGET_LOCK} x2.`;
+				}
+			},
+			{
+				name: 'On a Supercharged Platter',
+				description: `Transfer 2 energy to an ally.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_BUFF,
+				cost: 5,
+				baseCooldown: 3,
+				currentCooldown: 1,
+				execute: () => {
+					const target = getBot(this.currentTarget);
+					target.gainEnergy(2);
+					this.spendEnergy(3);
+					return `${this.name} served 2 energy to ${target.name}`;
+				}
+			},
+			{
+				name: 'Muttered Devastation',
+				abilityType: ABILITY_TYPES.AUTO_ATTACK,
+				description: `Quietly deal 1d15 ${DAMAGE_TYPES.HACK} damage to an enemy.`,
+				id: getId(),
+				cost: 0,
+				baseCooldown: 0,
+				currentCooldown: 0,
+				execute: () => {
+					const target = getBot(this.currentTarget);
+					const damage = rollDie(15);
+					const damageResult = this.dealDamage(target, damage, DAMAGE_TYPES.HACK);
+					return `${this.name} deals ${target.name} ${damageResult.amountApplied} ${DAMAGE_TYPES.HACK} damage with an insult spoken under its breath.`;
+				}
+			}
+		];
+		this.ultimate = {
+			name: 'A Slow Death',
+			description: `Cause 1 enemy to take ${DAMAGE_TYPES.RUST} damage at the start of the rest of their turns.`,
+			id: getId(),
+			abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+			damageTypes: [DAMAGE_TYPES.RUST],
+			execute: ()=> {
+				const target = getBot(this.currentTarget);
+				target.startOfTurn.push({
+					execute: function (bot) {
+						const dmg = rollDie(10);
+						const butler = bots.find(x => x.id == butlerId);
+						butler.dealDamage(bot, dmg, DAMAGE_TYPES.RUST);
+					},
+					id: this.ultimate.id
+				})
+				return `${this.name} caused ${target.name} to take ${DAMAGE_TYPES.RUST} damage at the start of their turns.`;
+			},
+			currentCooldown: 3,
+			baseCooldown: 4,
+		}
+		this.div = getBotDiv(this);
+		document.getElementById('team-' + ENEMY).append(this.div);
+		createReadyBadge(this);
+		this.refreshStatDivs();
+	}
+	death(){
+		// remove slow death from victims
+		const enemies = getLivingTeamBots(HERO);
+		enemies.forEach(x => x.startOfTurn = x.startOfTurn.filter(sot => sot.id != this.ultimate.id))
+		super.death();
+	}
+	async takeTurn(){
+		await super.takeTurn();
+		const livingTargets = getLivingTeamBots(HERO);
+		if (this.ultimateReady && !this.overheated) {
+			const previouslyMarked = livingTargets.filter(x => x.startOfTurn.some(sot => sot.id == this.ultimate.id));
+			if (previouslyMarked.length) { this.currentTarget = previouslyMarked[0].id; }
+			else { this.currentTarget = getRandomVal(livingTargets).id; }
+			return this.useAbility(this.ultimate.id);
+		}
+		const whisperedWarning = this.abilities.find(x => x.name == 'Whispered Warning');
+		// if there is a stealthed target and "Whispered Warning" is available
+		if (!this.overheated && livingTargets.some(x => x.buffs.includes(BUFF_TYPES.STEALTH)) && whisperedWarning.currentCooldown == 0 && this.energy >= whisperedWarning.cost) {
+			this.currentTarget = getRandomVal(livingTargets.filter(x => x.buffs.includes(BUFF_TYPES.STEALTH))).id;
+			return this.useAbility(whisperedWarning.id);
+		}
+		const superchargedPlatter = this.abilities.find(x => x.name == 'On a Supercharged Platter');
+		if (!this.overheated && this.energy == this.maxEnergy && superchargedPlatter.currentCooldown == 0) {
+			const allies = getLivingTeamBots(ENEMY);
+			const leastEnergyNotSelf = allies.filter(x => (x.id != this.id) && (x.energy < x.maxEnergy)).sort((a,b) => a.energy - b.energy);
+			if (leastEnergyNotSelf.length) {
+				this.currentTarget = leastEnergyNotSelf[0].id;
+				return this.useAbility(superchargedPlatter.id);
+			}
+		}
+		const targetable = getTargetable(HERO);
+		// if no available target, recharge
+		if (targetable.length < 1 && this.energy < this.maxEnergy) { return this.recharge(); }
+		this.currentTarget = getRandomVal(targetable).id;
+		const autoAttackId = this.abilities.find(a => a.abilityType == ABILITY_TYPES.AUTO_ATTACK).id;
+		return this.useAbility(autoAttackId);
+	}
+}
+
+class Oppressor extends Enemy {
+	constructor() {
+		const health = 250, energyLevel = 15, maxEnergy = 20, speed = 25;
+		super(ENEMY_TYPES.OPPRESSOR, health, energyLevel, maxEnergy, speed);
+		this.name = `Oppressor ${this.id}`;
+		this.bounty = rollDie(10) + 2;
+		this.passive = `${this.name} gains resistance to a damage type at the start of each turn, cycling through them in order.`;
+		this.currentTarget = 0;
+		this.currentResistTypeIndex = 0;
+		this.abilities = [
+			{
+				name: 'Loom',
+				description: `Grant ${BUFF_TYPES.TAUNT} x2 to self.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SELF_BUFF,
+				cost: 4,
+				baseCooldown: 7,
+				currentCooldown: 4,
+				execute: () => {
+					this.spendEnergy(4);
+					this.selfBuff(BUFF_TYPES.TAUNT, 2);
+					return `${this.name} towers over their opponents, becoming all they see and gaining ${BUFF_TYPES.TAUNT} x2.`;
+				}
+			},
+			{
+				name: 'Unstoppable Force',
+				description: `Deal 2d4 of all types of damage to a target.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+				cost: 4,
+				baseCooldown: 4,
+				currentCooldown: 2,
+				execute: () => {
+					const target = getBot(this.currentTarget);
+					this.spendEnergy(4);
+					let totalDmg = 0;
+					Object.keys(DAMAGE_TYPES).forEach(type => {
+						const dmg = getDiceValueTotal(4, 2);
+						totalDmg += this.dealDamage(target, dmg, type).amountApplied;
+					})
+					return `${this.name} runs down ${target.name} and assaults them with all damage types for ${totalDmg} damage.`;
+				}
+			},
+			{
+				name: 'Dark Lightning',
+				abilityType: ABILITY_TYPES.AUTO_ATTACK,
+				description: `Shoot bolts of fear and shadow, dealing ${DAMAGE_TYPES.HACK} and ${DAMAGE_TYPES.ENERGY} damage to an enemy.`,
+				id: getId(),
+				cost: 0,
+				baseCooldown: 0,
+				currentCooldown: 0,
+				execute: () => {
+					const target = getBot(this.currentTarget);
+					const hackDamage = rollDie(10);
+					const energyDamage = rollDie(10);
+					const hackDamageResult = this.dealDamage(target, hackDamage, DAMAGE_TYPES.HACK);
+					const energyDamageResult = this.dealDamage(target, energyDamage, DAMAGE_TYPES.ENERGY);
+					return `${this.name} blasts ${target.name} with jet-black bolts of lightning, dealing ${hackDamageResult.amountApplied} ${DAMAGE_TYPES.HACK} and ${energyDamageResult.amountApplied} ${DAMAGE_TYPES.ENERGY} damage to them.`;
+				}
+			}
+		];
+		this.ultimate = {
+			name: 'Paralyzing Fear',
+			description: `Cause 1 enemy to take 2d8 ${DAMAGE_TYPES.RUST}, 2d8 ${DAMAGE_TYPES.HACK} damage, ${DEBUFF_TYPES.REBOOTING} x1, and ${DEBUFF_TYPES.OVERHEATED} x2.`,
+			id: getId(),
+			abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+			damageTypes: [DAMAGE_TYPES.RUST, DAMAGE_TYPES.HACK],
+			execute: ()=> {
+				const target = getBot(this.currentTarget);
+					const hackDamage = rollDie(10);
+					const rustDamage = rollDie(10);
+					const hackDamageResult = this.dealDamage(target, hackDamage, DAMAGE_TYPES.HACK);
+					const rustDamageResult = this.dealDamage(target, rustDamage, DAMAGE_TYPES.RUST);
+					target.debuff(DEBUFF_TYPES.OVERHEATED, 2);
+					target.debuff(DEBUFF_TYPES.REBOOTING, 1);
+				return `${this.name} overwhelms ${target.name} with fear, dealing ${hackDamageResult.amountApplied + rustDamageResult.amountApplied} damage and paralyzing them.`;
+			},
+			currentCooldown: 10,
+			baseCooldown: 10,
+		}
+		this.div = getBotDiv(this);
+		document.getElementById('team-' + ENEMY).append(this.div);
+		createReadyBadge(this);
+		this.refreshStatDivs();
+	}
+	async takeTurn(){
+		await super.takeTurn();
+		console.log(this);
+
+		// get passive resist buff
+		const resistType = [BUFF_TYPES.RESIST_METAL, BUFF_TYPES.RESIST_ENERGY, BUFF_TYPES.RESIST_HACK, BUFF_TYPES.RESIST_MAGNETIC, BUFF_TYPES.RESIST_RUST][this.currentResistTypeIndex];
+		this.selfBuff(resistType, 1);
+		if (this.currentResistTypeIndex == 4) { this.currentResistTypeIndex = 0; }
+		else { this.currentResistTypeIndex ++; }
+
+		const livingTargets = getTargetable(HERO);
+		// if no available target, recharge
+		if (livingTargets.length < 1) { return this.recharge(); }
+
+		if (this.ultimateReady && !this.overheated) {
+			console.log('using ultimate');
+			const weakToRustAndHack = livingTargets.filter(x => x.debuffs.includes(DEBUFF_TYPES.WEAK_TO_RUST) && x.debuffs.includes(DEBUFF_TYPES.WEAK_TO_HACK));
+			if (weakToRustAndHack.length) {
+				this.currentTarget = getRandomVal(weakToRustAndHack).id;
+				return this.useAbility(this.ultimate.id);
+			}
+			const weakToRustOrHack = livingTargets.filter(x => x.debuffs.includes(DEBUFF_TYPES.WEAK_TO_RUST) || x.debuffs.includes(DEBUFF_TYPES.WEAK_TO_HACK));
+			if (weakToRustOrHack.length) {
+				this.currentTarget = getRandomVal(weakToRustOrHack).id;
+				return this.useAbility(this.ultimate.id);
+			}
+			this.currentTarget = livingTargets.sort((a, b) => b.hp - a.hp)[0].id; // highest health
+			return this.useAbility(this.ultimate.id);
+		}
+		const loom = this.abilities.find(x => x.name == 'Loom');
+		if (!this.overheated && loom.currentCooldown == 0 && this.energy >= loom.cost) {
+			console.log('use loom unless ally is taunting');
+			const allyIsAlreadyTaunting = getLivingTeamBots(ENEMY).some(x => x.buffs.includes(BUFF_TYPES.TAUNT));
+			if (!allyIsAlreadyTaunting) {
+				console.log('using loom');
+				return this.useAbility(loom.id);
+			}
+		}
+		const unstoppableForce = this.abilities.find(x => x.name == 'Unstoppable Force');
+		if (!this.overheated && unstoppableForce.currentCooldown == 0 && this.energy >= unstoppableForce.cost){
+			console.log('using unstoppable force');
+			const weakestTargets = livingTargets
+				.reduce((acc, val) => {
+					if (acc.weakCount < val.debuffs.length){
+						acc.weakCount = val.debuffs.length;
+						acc.bots = [val];
+					} else if (acc.weakCount == val.debuffs.length){
+						acc.bots.push(val);
+					}
+					return acc;
+				}, {weakCount: 0, bots: []}).bots;
+			this.currentTarget = getRandomVal(weakestTargets).id;
+			return this.useAbility(unstoppableForce.id);
+		}
+		// if abilities ready but low energy, recharge
+		if (this.readyAbilities.length && this.energy < 4) { return this.recharge() }
+
+		// use autoAttack on must vulnerable or random
+		const autoAttackId = this.abilities.find(a => a.abilityType == ABILITY_TYPES.AUTO_ATTACK).id;
+		const weakToEnergyAndHack = livingTargets.filter(x => x.debuffs.includes(DEBUFF_TYPES.WEAK_TO_ENERGY) && x.debuffs.includes(DEBUFF_TYPES.WEAK_TO_HACK));
+		if (weakToEnergyAndHack.length) {
+			console.log('using auto on double-vulnerable target', weakToEnergyAndHack);
+			this.currentTarget = getRandomVal(weakToEnergyAndHack).id;
+			return this.useAbility(autoAttackId);
+		}
+		const weakToEnergyOrHack = livingTargets.filter(x => x.debuffs.includes(DEBUFF_TYPES.WEAK_TO_ENERGY) || x.debuffs.includes(DEBUFF_TYPES.WEAK_TO_HACK));
+		if (weakToEnergyOrHack.length) {
+			console.log('using auto on single-vulnerable target', weakToEnergyOrHack);
+			this.currentTarget = getRandomVal(weakToEnergyOrHack).id;
+			return this.useAbility(autoAttackId);
+		}
+		this.currentTarget = getRandomVal(livingTargets).id;
+		console.log('using auto on target:' , this.currentTarget);
+		return this.useAbility(autoAttackId);
+	}
+}
+
+class SteelTitan extends Boss {
+	constructor(){
+		const health = 400, energyLevel = 15, maxEnergy = 23, speed = 20, team = ENEMY;
+		super(BOSS_TYPES.STEEL_TITAN, health, energyLevel, maxEnergy, speed);
+		this.name = 'The Steel Titan';
+		this.passive = `The Steel Titan cannot be harmed by damage amounts of 10 or less (before resistance/weakness)`;
+		this.abilities = [
+			{
+				name: 'Curb-Stomp',
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+				description: `Knock an enemy to the ground, kick them for ${DAMAGE_TYPES.METAL} damage, and apply ${DEBUFF_TYPES.REBOOTING} x1.`,
+				id: getId(),
+				cost: 4,
+				baseCooldown: 4,
+				currentCooldown: 4,
+				damageTypes: [DAMAGE_TYPES.METAL],
+				execute: () => {
+					const target = getBot(this.currentTarget);
+					target.debuff(DEBUFF_TYPES.REBOOTING, 1);
+					const damage = getDiceValueTotal(10, 4) + 4;
+					const damageResult = this.dealDamage(target, damage, DAMAGE_TYPES.METAL);
+					return `${this.name} threw down ${target.name} and stomped down on them mercilessly, dealing ${damageResult.amountApplied} ${DAMAGE_TYPES.METAL} and applying ${DEBUFF_TYPES.REBOOTING} x1.`;
+				}
+			},
+			{
+				name: 'Ankle-Breaker',
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+				description: `Strike an enemy in its leg, dealing ${DAMAGE_TYPES.METAL} damage and applying ${DEBUFF_TYPES.SLOW} x2`,
+				id: getId(),
+				cost: 5,
+				baseCooldown: 4,
+				currentCooldown: 2,
+				damageTypes: [DAMAGE_TYPES.METAL],
+				execute: () => {
+					const target = getBot(this.currentTarget);
+					target.debuff(DEBUFF_TYPES.SLOW, 2);
+					const damage = getDiceValueTotal(16, 2);
+					const damageResult = this.dealDamage(target, damage, DAMAGE_TYPES.METAL);
+					return `${this.name} struck ${target.name} in the leg, dealing ${damageResult.amountApplied} ${DAMAGE_TYPES.METAL} and applying ${DEBUFF_TYPES.SLOW} x2.`;
+				}
+			},
+			{
+				name: 'Glitch-Slap',
+				abilityType: ABILITY_TYPES.AUTO_ATTACK,
+				description: `Strike an enemy in its processor, dealing ${DAMAGE_TYPES.HACK} and ${DAMAGE_TYPES.METAL} damage.`,
+				id: getId(),
+				cost: 0,
+				baseCooldown: 0,
+				currentCooldown: 0,
+				damageTypes: [DAMAGE_TYPES.METAL, DAMAGE_TYPES.HACK],
+				execute: () => {
+					const target = getBot(this.currentTarget);
+					const hackDamage = getDiceValueTotal(6,2);
+					const metalDamage = getDiceValueTotal(6,2);
+					const hackDamageResult = this.dealDamage(target, hackDamage, DAMAGE_TYPES.HACK);
+					const metalDamageResult = this.dealDamage(target, metalDamage, DAMAGE_TYPES.METAL);
+					return `${this.name} slaps ${target.name} right in the processor, dealing ${hackDamageResult.amountApplied} ${DAMAGE_TYPES.HACK} and ${metalDamageResult.amountApplied} ${DAMAGE_TYPES.METAL} damage to them.`;
+				}
+			}
+
+		];
+		this.ultimate = {
+			name: 'Special Move',
+			description: `Picks up a target and slams them down across its knee, dealing half their max HP in ${DAMAGE_TYPES.METAL} damage.`,
+			id: getId(),
+			abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+			damageTypes: [DAMAGE_TYPES.METAL],
+			execute: ()=> {
+				const target = getBot(this.currentTarget);
+					const hackDamage = rollDie(10);
+					const rustDamage = rollDie(10);
+					const hackDamageResult = this.dealDamage(target, hackDamage, DAMAGE_TYPES.HACK);
+					const rustDamageResult = this.dealDamage(target, rustDamage, DAMAGE_TYPES.RUST);
+					target.debuff(DEBUFF_TYPES.OVERHEATED, 2);
+					target.debuff(DEBUFF_TYPES.REBOOTING, 1);
+				return `${this.name} overwhelms ${target.name} with fear, dealing ${hackDamageResult.amountApplied + rustDamageResult.amountApplied} damage and paralyzing them.`;
+			},
+			currentCooldown: 10,
+			baseCooldown: 10,
+		}
+		this.div = getBotDiv(this);
+		document.getElementById('team-' + team).append(this.div);
+		createReadyBadge(this);
+		this.refreshStatDivs();
+	}
+	takeDamage(amount, type){
+		return super.takeDamage(amount <= 10 ? 0 : amount, type);
+	}
+}
+
+class Overlord extends Hero {
+	constructor(){
+		const health = 350, energyLevel = 17, maxEnergy = 20, speed = 20, team = HERO;
+		super(BOT_TYPES.OVERLORD, health, energyLevel, maxEnergy, speed);
+		this.name = `Team ${team} Overlord`;
+		this.passive = `The Overlord can hold up to 5 minions.  These minions fuel its abilities and amplify its damage.  2 minions are gained every time it recharges.`;
+		this.minions = 0;
+		this.abilities = [
+			{
+				name: 'Hold Still',
+				description: `The Overlord commands a pair of minions to hold its victim, applying ${DEBUFF_TYPES.WEAK_TO_RUST} x1 before dealing 2d12 + 3 ${DAMAGE_TYPES.RUST} damage, losing 2 minions in the process.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+				inputType: INPUT_TYPES.ENEMY,
+				customRequirement: true,
+				customRequirementIsMet(bot) { return bot.minions > 1; },
+				customRequirementMessage: 'The Overlord must have at least 2 minions to use "Hold Still".',
+				cost: 4,
+				execute: (enemyId) => {
+					this.spendEnergy(4);
+					const target = getBot(enemyId);
+					target.debuff(DEBUFF_TYPES.WEAK_TO_RUST, 1);
+					const damage = getDiceValueTotal(16, 2) + 3;
+					var result = this.dealDamage(target, damage, DAMAGE_TYPES.RUST);
+					this.damageDealt += result.amountApplied;
+					this.loseMinions(2);
+					return `A pair of ${this.name}'s minions take hold of ${target.name}, allowing their master to apply ${DEBUFF_TYPES.WEAK_TO_RUST} x1 before dealing ${result.amountApplied} ${DAMAGE_TYPES.RUST} damage.`;
+				},
+				currentCooldown: 0,
+				baseCooldown: 4,
+			},
+			{
+				name: 'Carve and Recruit',
+				description: `The Overlord carves away a chunk of an enemy, dealing 3d10 ${DAMAGE_TYPES.METAL} damage, and then forms the chunk into a new minion.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+				inputType: INPUT_TYPES.ENEMY,
+				cost: 4,
+				execute: (enemyId) => {
+					this.spendEnergy(4);
+					const target = getBot(enemyId);
+					const damage = getDiceValueTotal(10, 3);
+					var result = this.dealDamage(target, damage, DAMAGE_TYPES.METAL);
+					this.damageDealt += result.amountApplied;
+					this.gainMinions(1);
+					return `${this.name} carves a chunk of metal from ${target.name}, dealing ${result.amountApplied} damage and creating a new minion.`;
+				},
+				currentCooldown: 0,
+				baseCooldown: 5,
+			},
+			{
+				name: 'Go Forth',
+				description: `The Overlord sends a minion to attack, dealing 2d8 + 9 ${DAMAGE_TYPES.METAL} damage and losing 1 minion.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.AUTO_ATTACK,
+				inputType: INPUT_TYPES.ENEMY,
+				customRequirement: true,
+				customRequirementIsMet(bot) { return bot.minions > 0; },
+				customRequirementMessage: 'The Overlord must have at least 1 minion to use "Go Forth".',
+				cost: 0,
+				execute: (enemyId) => {
+					const target = getBot(enemyId);
+					const damage = getDiceValueTotal(8, 4);
+					var result = this.dealDamage(target, damage, DAMAGE_TYPES.METAL);
+					this.damageDealt += result.amountApplied;
+					this.loseMinions(1);
+					return `${this.name} sends a minion to attack ${target.name}, dealing ${result.amountApplied} damage and losing 1 minion.`;
+				},
+				currentCooldown: 0,
+				baseCooldown: 0,
+			},
+		];
+		this.div = getBotDiv(this);
+		document.getElementById('team-' + team).append(this.div);
+		createReadyBadge(this);
+		this.refreshStatDivs();
+	}
+	gainMinions(amount) {
+		this.minions = Math.min(this.minions + amount, 5);
+	}
+	loseMinions(amount) {
+		this.minions = Math.max(this.minions - amount, 0);
+	}
+	refreshStatDivs() {
+		super.refreshStatDivs();
+		this.div.querySelector('.energy-div .stat-readout').innerText += ` (${this.minions})`;
+	}
+	recharge() {
+		this.gainMinions(2);
+		super.recharge();
+	}
+	ultimate = {
+		name: 'Swarm',
+		description: `The Overlord's minions swarm over the target, applying ${DEBUFF_TYPES.SLOW}x2 and 3d7 ${DAMAGE_TYPES.METAL} damage per current minion, losing all minions in the process.  Requires at least 3 minions.`,
+		id: getId(),
+		abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+		inputType: INPUT_TYPES.ENEMY,
+		damageTypes: [DAMAGE_TYPES.METAL],
+		customRequirement: true,
+		customRequirementIsMet(bot) { return bot.minions > 2; },
+		customRequirementMessage: 'The Overlord must have at least 3 minion to use "Swarm".',
+		execute: (enemyId)=> {
+			const target = getBot(enemyId);
+			const dmg = getDiceValueTotal(7, this.minions * 3);
+			var result = this.dealDamage(target, dmg, DAMAGE_TYPES.METAL);
+			this.damageDealt += result.amountApplied;
+			this.minions = 0;
+			target.debuff(DEBUFF_TYPES.SLOW, 2);
+			return `${this.name} sends its minions swarming over ${target.name}, dealing ${result.amountApplied} ${DAMAGE_TYPES.METAL} damage and applying ${DEBUFF_TYPES.SLOW} x2.`;
+		},
+		currentCooldown: 7,
+		baseCooldown: 7,
+	}
+}
+
+class Guardian extends Hero {
+	constructor(){
+		const health = 425, energyLevel = 25, maxEnergy = 25, speed = 17, team = HERO;
+		super(BOT_TYPES.GUARDIAN, health, energyLevel, maxEnergy, speed);
+		this.name = `Team ${team} Guardian`;
+		this.pride = 0;
+		this.passive = `${this.name} blocks damage equal to their pride ever time they take damage.`;
+		this.addPride = (val) => { this.pride = Math.min(13, this.pride + val); }
+		this.abilities = [
+			{
+				name: 'Stand Tall',
+				description: `Gain ${BUFF_TYPES.TAUNT} x1, ${DEBUFF_TYPES.SLOW} x1, "Pride" x2, and x1 selected resistance.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SELF_BUFF,
+				inputType: INPUT_TYPES.CUSTOM,
+				getCustomInput: async ()=>{
+					const kvpList = [BUFF_TYPES.RESIST_METAL, BUFF_TYPES.RESIST_ENERGY, BUFF_TYPES.RESIST_HACK, BUFF_TYPES.RESIST_RUST, BUFF_TYPES.RESIST_MAGNETIC]
+						.map(x => ({key:x,value:x}));
+					const selection = await getKVPListSelection(kvpList, 'Choose a Resistance');
+					return selection;
+				},
+				cost: 3,
+				execute: (selection) =>{
+					if (!selection) { return 'Invalid input for "Stand Fast".'; }
+					this.spendEnergy(3);
+					this.selfBuff(BUFF_TYPES.TAUNT, 1);
+					this.selfBuff(selection, 1);
+					this.selfDebuff(DEBUFF_TYPES.SLOW, 1);
+					this.addPride(1);
+					return `${this.name} stands in the frontline, tanking for its allies, gaining ${BUFF_TYPES.TAUNT} x1, ${DEBUFF_TYPES.SLOW} x1, and ${selection} x1.`;
+				},
+				currentCooldown: 3,
+				baseCooldown: 3,
+			},
+			{
+				name: 'Be Better!',
+				description: `Purge all debuffs from an ally.  Deal Xd8 ${DAMAGE_TYPES.HACK} damage to an enemy, where "X" is the amount of debuff stacks purged.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.OTHER,
+				inputType: INPUT_TYPES.CUSTOM,
+				getCustomInput: async ()=>{
+					const kvpListAlly = getLivingTeamBots(this.team)
+						.filter(x => x.id != this.id && x.debuffs.length)
+						.map(x => ({key:`${x.name} (${x.debuffs.length} debuffs)`,value:x.id}));
+					const selectedAlly = await getKVPListSelection(kvpListAlly, 'Choose an Ally with debuffs');
+					if (!selectedAlly) { throw new Error('User cancelled selection'); }
+					const kvpListEnemy = getTargetable(ENEMY)
+						.map(x => ({key:x.name,value:x.id}));
+					const selectedEnemy = await getKVPListSelection(kvpListEnemy, 'Choose an Enemy to target');
+					if (!selectedEnemy) { throw new Error('User cancelled selection'); }
+					return {selectedAlly, selectedEnemy}
+				},
+				cost: 5,
+				execute: (customInput) => {
+					try{
+					this.spendEnergy(5);
+					const ally = getBot(customInput.selectedAlly);
+					const enemy = getBot(customInput.selectedEnemy);
+					const purgedCount = ally.debuffs.length;
+					ally.debuffs = [];
+					var dmg = getDiceValueTotal(8, purgedCount);
+					var dmgResult = this.dealDamage(enemy, (dmg, DAMAGE_TYPES.HACK));
+					return `${this.name} cleansed ${purgedCount} debuff stacks from ${ally.name}, dealing ${dmgResult.amountApplied} damage to ${target.name}.`;
+					} catch(err) { console.log(err); }
+				},
+				currentCooldown: 3,
+				baseCooldown: 3,
+			},
+			{
+				name: 'Backhand',
+				description: `Select an enemy and deal 3d4 ${DAMAGE_TYPES.METAL} damage.  Store 1 "pride" if ${this.name} is buffed and/or if target is debuffed.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.AUTO_ATTACK,
+				inputType: INPUT_TYPES.ENEMY,
+				cost: 0,
+				execute: (enemyId) => {
+					var target = getBot(enemyId);
+					if (this.buffs.length) { this.addPride(1); }
+					if (target.debuffs.length) { this.addPride(1); }
+					var damage = getDiceValueTotal(4,3);
+					var result = this.dealDamage(target, damage, DAMAGE_TYPES.METAL);
+					return `${this.name} backhands ${target.name}, dealing ${result.amountApplied} damage.`;
+				},
+				currentCooldown: 0,
+				baseCooldown: 0,
+			},
+		];
+		this.div = getBotDiv(this);
+		document.getElementById('team-' + team).append(this.div);
+		createReadyBadge(this);
+		this.refreshStatDivs();
+	}
+	takeDamage(amount, type) {
+		super.takeDamage(amount - this.pride, type);
+	}
+	refreshStatDivs() {
+		super.refreshStatDivs();
+		this.div.querySelector('.energy-div .stat-readout').innerText += ` (${this.pride})`;
+	}
+	ultimate = {
+		name: 'Disdain',
+		description: `Despise the enemy team, pouring Xd10 ${DAMAGE_TYPES.HACK} damage into all enemies, where "X" is how much Pride you have stored + 1 (max 13).  Consumes all Pride.`,
+		id: getId(),
+		abilityType: ABILITY_TYPES.TEAM_BUFF,
+		damageTypes: [],
+		execute: ()=> {
+			const enemyBots = getLivingTeamBots(ENEMY);
+			const dmg = getDiceValueTotal(10, this.pride + 1);
+			let totalDmg = 0;
+			enemyBots.forEach(x => {
+				totalDmg += this.dealDamage(x, dmg, DAMAGE_TYPES.HACK).amountApplied;
+			})
+			this.pride = 0;
+			this.damageDealt += totalDmg;
+			return `${this.name} pours its contempt in the enemy team, dealing ${totalDmg} ${DAMAGE_TYPES.HACK} to the enemy team.`;
+		},
+		currentCooldown: 9,
+		baseCooldown: 9,
+	}
+}
+
+class Engine extends Hero {
+	constructor(){
+		const health = 350, energyLevel = 40, maxEnergy = 30, speed = 20, team = HERO;
+		super(BOT_TYPES.ENGINE, health, energyLevel, maxEnergy, speed);
+		this.name = `Team ${team} Engine`;
+		this.passive = `Excess energy gained by this bot is stored (max 10) and spent to amplify their ultimate.  However, it is also spent by autoattack, reducing bonus to ultimate.  Gains +3 energy during "recharge".`;
+		this.excessEnergyStored = 0;
+		this.abilities = [
+			{
+				name: 'Energy Boost',
+				description: 'Select an ally and give them up to 5 energy from excess stored.',
+				id: getId(),
+				abilityType: ABILITY_TYPES.OTHER,
+				inputType: INPUT_TYPES.CUSTOM,
+				getCustomInput: async ()=>{
+					const kvpList = getLivingTeamBots(this.team)
+						.filter(x => x.id != this.id)
+						.map(x => ({key:x.name,value:x.id}));
+					const selectedAlly = await getKVPListSelection(kvpList, 'Choose an Ally');
+					return selectedAlly;
+				},
+				cost: 7,
+				execute: (selectedAllyId) =>{
+					if (!selectedAllyId) { return 'Invalid inputs for "Boost Ally".'; }
+					this.spendEnergy(7);
+					var target = getBot(selectedAllyId);
+					const energyToGive = Math.min(this.excessEnergyStored, 5);
+					this.excessEnergyStored = Math.min(this.excessEnergyStored - 5, 0);
+					target.gainEnergy(energyToGive);
+					target.refreshStatDivs(); // to display energy change
+					return `${this.name} routes a surge of power to ${target.name}, granting them ${energyToGive} energy from their reserves.`;
+				},
+				currentCooldown: 2,
+				baseCooldown: 2,
+			},
+			{
+				name: 'Overcharge',
+				description: 'Overheat an enemy and deal energy damage equal to 2x their current energy.',
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+				inputType: INPUT_TYPES.ENEMY,
+				cost: 5,
+				execute: (enemyId) => {
+					try{
+					this.spendEnergy(5);
+					var target = getBot(enemyId);
+					target.debuff(DEBUFF_TYPES.OVERHEATED, 2);
+					var dmg = target.energy * 2;
+					var dmgResult = this.dealDamage(target, dmg, DAMAGE_TYPES.ENERGY);
+					return `${this.name} overcharged ${target.name}, dealing ${dmgResult.amountApplied} damage and causing ${DEBUFF_TYPES.OVERHEATED} x2.`;
+					} catch(err) { console.log(err); }
+				},
+				currentCooldown: 5,
+				baseCooldown: 5,
+			},
+			{
+				name: 'Jolt',
+				description: `Select an enemy and deal 2d10 ${DAMAGE_TYPES.ENERGY} damage.  If excess energy is stored, spends 1 to increase damage to 3d10.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.AUTO_ATTACK,
+				inputType: INPUT_TYPES.ENEMY,
+				cost: 0,
+				execute: (enemyId) => {
+					var target = getBot(enemyId);
+					var damage = getDiceValueTotal(10,2);
+					if (this.excessEnergyStored > 1) { this.excessEnergyStored --; damage += rollDie(10); }
+					var result = this.dealDamage(target, damage, DAMAGE_TYPES.ENERGY);
+					return `${this.name} blasted an arc of energy towards ${target.name}, dealing ${result.amountApplied} damage.`;
+				},
+				currentCooldown: 0,
+				baseCooldown: 0,
+			},
+		];
+		this.div = getBotDiv(this);
+		document.getElementById('team-' + team).append(this.div);
+		createReadyBadge(this);
+		this.refreshStatDivs();
+	}
+	recharge(){
+		var gainedEnergy = rollEnergy(this.energyLevel) + 3;
+		var excessEnergy = Math.max((gainedEnergy + this.energy) - this.maxEnergy, 0);
+		this.excessEnergyStored = Math.min(10, excessEnergy + this.excessEnergyStored);
+		this.energy = Math.min(this.maxEnergy, gainedEnergy + this.energy);
+		this.tickDownEffects();
+		this.tickDownCooldowns();
+		this.refreshStatDivs();
+		setMessage(`${this.name} recharged and gained ${gainedEnergy - excessEnergy} energy.`);
+		this.turnCompleted();
+
+	}
+	refreshStatDivs() {
+		super.refreshStatDivs();
+		this.div.querySelector('.energy-div .stat-readout').innerText += ` (${this.excessEnergyStored})`;
+	}
+	ultimate = {
+		name: 'Power Surge',
+		description: `Release stored excess energy, applying ${DEBUFF_TYPES.WEAK_TO_ENERGY} to enemy team and THEN dealing ${DAMAGE_TYPES.ENERGY} damage equal to double the excess energy stored.`,
+		id: getId(),
+		abilityType: ABILITY_TYPES.TEAM_BUFF,
+		damageTypes: [],
+		execute: ()=> {
+			const enemyBots = getLivingTeamBots(ENEMY);
+			const excessEnergySpent = this.excessEnergyStored.toString();
+			let totalDmg = 0;
+			enemyBots.forEach(x => {
+				x.debuff(DEBUFF_TYPES.WEAK_TO_ENERGY, 1);
+				totalDmg += this.dealDamage(x, this.excessEnergyStored * 2, DAMAGE_TYPES.ENERGY).amountApplied;
+			})
+			this.excessEnergyStored = 0;
+			return `${this.name} unleashes a surge of ${excessEnergySpent} energy, dealing ${totalDmg} to the enemy team and applying ${DEBUFF_TYPES.WEAK_TO_ENERGY}`;
+		},
+		currentCooldown: 10,
+		baseCooldown: 10,
+	}
+}
+
+class Rager extends Hero {
+	constructor(){
+		const health = 425, energyLevel = 15, maxEnergy = 15, speed = 22, team = HERO;
+		super(BOT_TYPES.RAGER, health, energyLevel, maxEnergy, speed);
+		this.name = `Team ${team} Rager`;
+		this.passive = `Any debuffs applied to this bot are reduced by 1 when applied, or ignored if amount is x1.  Damage taken increases ultimate damage dealt.`;
+		this.abilities = [
+			{
+				name: 'Hatred and Scorn',
+				description: `Deal 3d7 + 3 ${DAMAGE_TYPES.HACK} and 3d7 + 3 ${DAMAGE_TYPES.RUST} damage to a single target.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+				inputType: INPUT_TYPES.ENEMY,
+				cost: 4,
+				execute: (targetId) =>{
+					this.spendEnergy(4);
+					const target = getBot(targetId);
+					const hackDmg = this.dealDamage(target, getDiceValueTotal(7, 3) + 3, DAMAGE_TYPES.HACK).amountApplied;
+					const rustDmg = this.dealDamage(target, getDiceValueTotal(7, 3) + 3, DAMAGE_TYPES.RUST).amountApplied;
+					return `${this.name} radiates anger into ${target.name}, dealing ${hackDmg + rustDmg} damage.`;
+				},
+				currentCooldown: 4,
+				baseCooldown: 4,
+			},
+			{
+				name: 'Scream and Curse',
+				description: 'Apply TAUNT x2 to self.',
+				id: getId(),
+				abilityType: ABILITY_TYPES.SELF_BUFF,
+				cost: 5,
+				execute: () =>{
+					this.spendEnergy(5);
+					this.selfBuff(BUFF_TYPES.TAUNT, 2);
+					return `${this.name} screams and curses the enemies, gaining taunt x2.`;
+				},
+				currentCooldown: 0,
+				baseCooldown: 6,
+			},
+			{
+				name: 'Pain and Suffering',
+				description: `Take 2d4 ${DAMAGE_TYPES.HACK} damage and deal 3x that amount as ${DAMAGE_TYPES.RUST} damage to an enemy.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.AUTO_ATTACK,
+				inputType: INPUT_TYPES.ENEMY,
+				cost: 0,
+				execute: (enemyId) => {
+					const target = getBot(enemyId);
+					const damage = getDiceValueTotal(4, 2);
+					const damageTaken = this.takeDamage(damage, DAMAGE_TYPES.HACK).amountApplied;
+					const result = this.dealDamage(target, damageTaken * 3, DAMAGE_TYPES.RUST);
+					return `${this.name} recalls horror and pain (taking ${damageTaken} ${DAMAGE_TYPES.HACK} damage) and shares it with ${target.name}, dealing ${result.amountApplied} ${DAMAGE_TYPES.RUST} damage.`;
+				},
+				currentCooldown: 0,
+				baseCooldown: 0,
+			},
+		];
+		this.div = getBotDiv(this);
+		document.getElementById('team-' + team).append(this.div);
+		createReadyBadge(this);
+		this.refreshStatDivs();
+	}
+	debuff(type, amount) {
+		if (amount > 1) {
+			super.debuff(type, amount - 1);
+		}
+	}
+	ultimate = {
+		name: 'Vengeance Served Cold',
+		description: `Summon every hurt stored deep in memory and deal ${DAMAGE_TYPES.HACK} damage equal to 1/3 of the damage it has taken.`,
+		id: getId(),
+		abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+		inputType: INPUT_TYPES.ENEMY,
+		damageTypes: [],
+		execute: (targetId)=> {
+			const target = getBot(targetId);
+			const dmgResult = this.dealDamage(target, this.damageTaken / 3, DAMAGE_TYPES.HACK);
+			return `${this.name}, harboring rage and hurt, pierces the core of ${target.name}, dealing ${dmgResult.amountApplied} ${DAMAGE_TYPES.HACK} damage.`;
+		},
+		currentCooldown: 10,
+		baseCooldown: 10,
+	}
+}
+
+class Oracle extends Hero {
+	constructor(){
+		const health = 320, energyLevel = 35, maxEnergy = 20, speed = 13, team = HERO;
+		super(BOT_TYPES.ORACLE, health, energyLevel, maxEnergy, speed);
+		this.name = `Team ${team} Oracle`;
+		this.abilities = [
+			{
+				name: 'Expose Vulnerability',
+				description: 'Select an enemy and apply a DEBUFF of your choice x2.',
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_DEBUFF,
+				inputType: INPUT_TYPES.CUSTOM,
+				getCustomInput: async ()=>{
+					const targetKvpList = bots.filter(b => b.team != this.team && b.hp > 0).map(x => ({ key: x.name, value: x.id }));
+					const targetId = await getKVPListSelection(targetKvpList, 'Select bot to debuff');
+					if (targetId == null) { return null; }
+					const debuffTypeList = Object.values(DEBUFF_TYPES).map(x => ({ key:x,value:x }));
+					const debuffType = await getKVPListSelection(debuffTypeList, 'Select debuff type');
+					if (debuffType == null) { return null; }
+					console.log(targetId, debuffType);
+					return {targetId,debuffType};
+				},
+				cost: 8,
+				execute: (customInput) =>{
+					console.log(customInput);
+					if (!customInput.debuffType || !customInput.targetId) { return 'Invalid inputs for "Expose Vulnerability".'; }
+					this.spendEnergy(8);
+					var target = getBot(customInput.targetId);
+					target.debuff(customInput.debuffType, 2);
+					target.refreshStatDivs(); // to display debuff
+					return `${this.name} reads the defense patterns of ${target.name}, broadcasting ${customInput.debuffType} vulnerabilities for 2 turns.`;
+				},
+				currentCooldown: 6,
+				baseCooldown: 6,
+			},
+			{
+				name: 'Dredge the Past',
+				description: `Select an enemy and deal ${DAMAGE_TYPES.HACK} damage equal to a quarter of the damage that unit has received this battle.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+				inputType: INPUT_TYPES.ENEMY,
+				cost: 5,
+				execute: (enemyId) => {
+					this.spendEnergy(5);
+					var target = getBot(enemyId);
+					var hackDam = Math.floor(target.damageTaken / 4);
+					var hackResult = this.dealDamage(target, hackDam, DAMAGE_TYPES.HACK);
+					this.damageDealt += hackResult.amountApplied;
+					return `${this.name} sifted the memory of ${target.name}, recalling destruction and chaos from its past, dealing ${hackResult.amountApplied} damage.`;
+				},
+				currentCooldown: 5,
+				baseCooldown: 5,
+			},
+			{
+				name: 'Corrupt Memory',
+				description: 'Select an enemy and deal 4d4 HACK damage.',
+				id: getId(),
+				abilityType: ABILITY_TYPES.AUTO_ATTACK,
+				inputType: INPUT_TYPES.ENEMY,
+				cost: 0,
+				execute: (enemyId) => {
+					var target = getBot(enemyId);
+					var damage = getDiceValueTotal(4,4);
+					var result = this.dealDamage(target, damage, DAMAGE_TYPES.HACK);
+					return `${this.name} corrupted memory in the mind of ${target.name}, dealing ${result.amountApplied} damage.`;
+				},
+				currentCooldown: 0,
+				baseCooldown: 0,
+			},
+		];
+		this.div = getBotDiv(this);
+		document.getElementById('team-' + team).append(this.div);
+		createReadyBadge(this);
+		this.refreshStatDivs();
+	}
+	ultimate = {
+		name: 'Clairvoyance',
+		description: 'Future-proof your team: cleanse all debuffs and apply RESIST x1 to self and allies.',
+		id: getId(),
+		abilityType: ABILITY_TYPES.TEAM_BUFF,
+		damageTypes: [],
+		execute: ()=> {
+			var botsOnTeam = getLivingTeamBots(this.team).filter(b => b.id != this.id);
+			botsOnTeam.forEach(b => {
+				b.buff(BUFF_TYPES.RESIST_METAL,1);
+				b.buff(BUFF_TYPES.RESIST_ENERGY,1);
+				b.buff(BUFF_TYPES.RESIST_RUST,1);
+				b.buff(BUFF_TYPES.RESIST_MAGNETIC,1);
+				b.buff(BUFF_TYPES.RESIST_HACK,1);
+				b.dispelAll();
+				b.refreshStatDivs();
+			})
+			this.selfBuff(BUFF_TYPES.STEALTH, 1);
+			this.tickDownEffects();
+			this.tickDownCooldowns();
+			return `${this.name} shows team ${this.team} a glimpse of the future, giving them resistance to all damage for a turn and dispelling all debuffs.`;
+		},
+		currentCooldown: 10,
+		baseCooldown: 10,
+	}
+}
+
+class Hunter extends Hero {
+	constructor(){
+		const health = 290, energyLevel = 20, maxEnergy = 16, speed = 35, team = HERO;
+		super(BOT_TYPES.HUNTER, health, energyLevel, maxEnergy, speed);
+		// Hunter type starts with FAST buff
+		this.buff(BUFF_TYPES.FAST, 1);
+		this.name = `Team ${team} Hunter`;
+		this.passive = `This bot starts with ${BUFF_TYPES.FAST} x1 and does extra damage with autoattacks to targets with ${DEBUFF_TYPES.TARGET_LOCK}.`;
+		this.abilities = [
+			{
+				name: 'Mark Prey',
+				id: getId(),
+				description: `Select an enemy, strike for 2d8 ${DAMAGE_TYPES.RUST} damage, and apply ${DEBUFF_TYPES.TARGET_LOCK} x 3.`,
+				damageTypes: [DAMAGE_TYPES.RUST],
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+				cost: 4,
+				inputType: INPUT_TYPES.ENEMY,
+				execute: (targetId)=>{
+					this.inDarkWeb = false;
+					var target = getBot(targetId);
+					this.spendEnergy(4);
+					target.debuff(DEBUFF_TYPES.TARGET_LOCK, 3);
+					let rustDmg= getDiceValueTotal(8, 2);
+					let rustResult = this.dealDamage(target, rustDmg, DAMAGE_TYPES.RUST);
+					return `${this.name} has marked ${target.name} as prey, dealing ${rustResult.amountApplied} ${DAMAGE_TYPES.RUST} damage and ${DEBUFF_TYPES.TARGET_LOCK} x3.`;
+				},
+				currentCooldown: 4,
+				baseCooldown: 4,
+			},
+			{
+				name: 'Steel Trap',
+				id: getId(),
+				description: `Select an enemy and apply ${DEBUFF_TYPES.SLOW} and ${DEBUFF_TYPES.WEAK_TO_METAL}.  Applies double if target has ${DEBUFF_TYPES.TARGET_LOCK}.`,
+				cost: 2,
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_DEBUFF,
+				inputType: INPUT_TYPES.ENEMY,
+				execute: (targetId) => {
+					this.inDarkWeb = false;
+					var target = getBot(targetId);
+					this.spendEnergy(2);
+					const lengthOfDebuffs = target.debuffs.includes(DEBUFF_TYPES.TARGET_LOCK) ? 2 : 1;
+					target.debuff(DEBUFF_TYPES.SLOW, lengthOfDebuffs);
+					target.debuff(DEBUFF_TYPES.WEAK_TO_METAL, lengthOfDebuffs);
+					return `${this.name} catches ${target.name} in a trap, applying ${DEBUFF_TYPES.SLOW} and ${DEBUFF_TYPES.WEAK_TO_METAL} x${lengthOfDebuffs}.`;
+				},
+				currentCooldown: 3,
+				baseCooldown: 3,
+			},
+			{
+				name: "Strike True/From Hell's Heart",
+				description: `Select an enemy and attack for 4d4 METAL damage.  Adds 2d4 RUST damage if target has ${DEBUFF_TYPES.TARGET_LOCK}.  If still has ${BUFF_TYPES.STEALTH} and ${BUFF_TYPES.FAST} after using "Into the Dark Web", instead does 4d10 ${DAMAGE_TYPES.METAL} damage and 8d5 ${DAMAGE_TYPES.RUST} damage.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.AUTO_ATTACK,
+				inputType: INPUT_TYPES.ENEMY,
+				damageTypes: [DAMAGE_TYPES.METAL, DAMAGE_TYPES.RUST],
+				execute: (targetId) =>{
+					var target = getBot(targetId);
+					if (this.inDarkWeb && this.buffs.includes(BUFF_TYPES.STEALTH) && this.buffs.includes(BUFF_TYPES.FAST)) {
+						var damage = getDiceValueTotal(10,4);
+						var result = this.dealDamage(target, damage, DAMAGE_TYPES.METAL);
+						var rustResult = null;
+						var rustDmg = getDiceValueTotal(5, 8);
+						rustResult = this.dealDamage(target, rustDmg, DAMAGE_TYPES.RUST);
+						return `${this.name} stabs From Hell's Heart at ${target.name} for ${result.amountApplied} ${DAMAGE_TYPES.METAL} damage and ${rustResult.amountApplied} ${DAMAGE_TYPES.RUST} damage.`
+					}
+					var damage = getDiceValueTotal(4,4);
+					var result = this.dealDamage(target, damage, DAMAGE_TYPES.METAL);
+					var rustResult = null;
+					if (target.debuffs.includes(DEBUFF_TYPES.TARGET_LOCK)) {
+						var rustDmg = getDiceValueTotal(4,2);
+						rustResult = this.dealDamage(target, rustDmg, DAMAGE_TYPES.RUST);
+					}
+					return `${this.name} stabs at ${target.name} for ${result.amountApplied} ${DAMAGE_TYPES.METAL} damage${rustResult ? `, and ${rustResult.amountApplied} ${DAMAGE_TYPES.RUST} damage` : ''}.`;
+				},
+				currentCooldown: 0,
+				baseCooldown: 0,
+				cost: 0,
+			},
+		];
+		this.div = getBotDiv(this);
+		document.getElementById('team-' + team).append(this.div);
+		createReadyBadge(this);
+		this.refreshStatDivs();
+	}
+	ultimate = {
+		name: 'Into the Dark Web',
+			description: `Become untrackable and prepare a precision strike on your victim.  Gain ${BUFF_TYPES.STEALTH} and ${BUFF_TYPES.FAST}.  If you still have these buffs at the beginning of your next turn, "From Hell's Heart" becomes available.`,
+			id: getId(),
+			abilityType: ABILITY_TYPES.SELF_BUFF,
+			execute: ()=> {
+				this.selfBuff(BUFF_TYPES.STEALTH, 1);
+				this.selfBuff(BUFF_TYPES.FAST, 1);
+				this.inDarkWeb = true;
+				return `${this.name} cloaks itself, becoming undetectable.  They are prepared to strike...`;
+			},
+			currentCooldown: 8,
+			baseCooldown: 8,
+	}
+	useAbility(abilityId) {
+		const result = super.useAbility(abilityId);
+		return result;
+	}
+	idw = false;
+	set inDarkWeb(val){
+		this.idw = val;
+		if (this.idw){
+			this.div.classList.add('in-dark-web');
+		} else {
+			this.div.classList.remove('in-dark-web');
+		}
+
+	}
+	get inDarkWeb(){
+		return this.idw;
+	}
+}
+
+
+class Hulk extends Hero {
+	constructor(){
+		const health = 500, energyLevel = 22, maxEnergy = 20, speed = 15, team = HERO;
+		super(BOT_TYPES.HULK, health, energyLevel, maxEnergy, speed);
+		this.name = `Team ${team} Hulk`;
+		this.passive = 'Whenever this bot receives damage, its ultimate cooldown decreases.';
+		this.abilities = [
+			{
+				name: '"Do Your Worst"',
+				description: `Self-stun to gain ${BUFF_TYPES.TAUNT} x3.`,
+				id: getId(),
+				abilityType: ABILITY_TYPES.SELF_BUFF,
+				cost: 3,
+				execute: () => {
+					try{
+					this.spendEnergy(3);
+					this.selfDebuff(DEBUFF_TYPES.REBOOTING, 1);
+					this.selfBuff(BUFF_TYPES.TAUNT, 3);
+					return `${this.name} strides confidently into the crossfire, welcoming punishment, gaining ${BUFF_TYPES.TAUNT} x3 and ${DEBUFF_TYPES.REBOOTING} x1.`;
+					} catch(err) { console.log(err); }
+				},
+				currentCooldown: 6,
+				baseCooldown: 6,
+			},
+			{
+				name: 'Swing',
+				id: getId(),
+				description: 'Select an enemy and attack for 3d12 + 5.',
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+				damageTypes: [DAMAGE_TYPES.METAL],
+				cost: 3,
+				inputType: INPUT_TYPES.ENEMY,
+				execute: (targetId)=>{
+					var target = getBot(targetId);
+					this.spendEnergy(3);
+					var damage = getDiceValueTotal(12,3) + 5;
+					var result = this.dealDamage(target, damage, DAMAGE_TYPES.METAL);
+					return `${this.name} attacked ${target.name} for ${result.amountApplied}.`;
+				},
+				baseCooldown: 3,
+				currentCooldown: 3,
+			},
+			{
+				name: 'Heat dump',
+				description: "Send a wave of heat over your foes, dealing 3d10 ENERGY damage and lowering own regular abilities' cooldowns by 2.",
+				id: getId(),
+				abilityType: ABILITY_TYPES.AOE_ATTACK,
+				damageTypes: [DAMAGE_TYPES.ENERGY],
+				cost: 4,
+				inputType: INPUT_TYPES.ENEMY_TEAM,
+				execute: (team)=>{
+					var teamBots = getLivingTeamBots(team);
+					var damage = getDiceValueTotal(10,3);
+					var results = [];
+					teamBots.forEach(target => {
+						results.push(this.dealDamage(target, damage, DAMAGE_TYPES.ENERGY));
+					})
+					this.abilities.forEach(a => {
+						a.currentCooldown --;
+					})
+					const totalDamage = results.reduce((acc,val) => { acc += val.amountApplied; return acc; }, 0);
+					return `${this.name} shoots waves of heat at team ${team}, causing a total of ${totalDamage} damage and lowering own (non-ultimate) cooldowns by 2.`;
+				},
+				currentCooldown: 5,
+				baseCooldown: 5,
+			},
+			{
+				name: 'Fist of Molten Metal',
+				description: 'Select an enemy and attack for 5d5 METAL damage.',
+				id: getId(),
+				abilityType: ABILITY_TYPES.AUTO_ATTACK,
+				inputType: INPUT_TYPES.ENEMY,
+				damageTypes: [DAMAGE_TYPES.METAL],
+				execute: (targetId) =>{
+					var target = getBot(targetId);
+					var damage = getDiceValueTotal(5,5);
+					var result = this.dealDamage(target, damage, DAMAGE_TYPES.METAL);
+					return `${this.name} pours fury into its hand, swinging a fiery, metal fist at ${target.name} for ${result.amountApplied} damage.`;
+				},
+				currentCooldown: 0,
+				baseCooldown: 0,
+				cost: 0,
+			},
+		];
+		this.ultimate = {
+			name: 'Rip and Tear',
+			description: 'Select an enemy and deal 4d10 + 5 METAL damage, apply WEAK TO METAL x2, and heal self for total damage dealt.',
+			id: getId(),
+			inputType: INPUT_TYPES.ENEMY,
+			abilityType: ABILITY_TYPES.SINGLE_TARGET_ATTACK,
+			damageTypes: [DAMAGE_TYPES.METAL],
+			execute: (targetId)=> {
+				var target = getBot(targetId);
+				var damage = getDiceValueTotal(10,4) + 5;
+				var damageResult = this.dealDamage(target, damage, DAMAGE_TYPES.METAL);
+				this.heal(damageResult.amountApplied);
+				target.debuff(DEBUFF_TYPES.WEAK_TO_METAL,2);
+				return `${this.name} tears into ${target.name}, dealing ${damageResult.amountApplied} ${DAMAGE_TYPES.METAL} damage and weakening them to ${DAMAGE_TYPES.METAL} damage for 2 turns.  They consume the shreds of metal ripped from their prey, healing themselves.`;
+			},
+			currentCooldown: 20,
+			baseCooldown: 20,
+		};
+		this.div = getBotDiv(this);
+		document.getElementById('team-' + team).append(this.div);
+		createReadyBadge(this);
+		this.refreshStatDivs();
+	}
+	takeDamage(amount,type){
+		this.ultimate.currentCooldown = Math.max(0, this.ultimate.currentCooldown - 1);
+		return super.takeDamage(amount,type);
+	}
+}
+
+class Scout extends Hero {
+	constructor(){
+		const health = 340, energyLevel = 20, maxEnergy = 20, speed = 26, team = HERO;
+		super(BOT_TYPES.SCOUT, health, energyLevel, maxEnergy, speed);
+		this.name = `Team ${team} Scout`;
+		this.abilities = [
+			{
+				name: 'Report Weakness',
+				id: getId(),
+				description: 'Select an enemy and apply weakness.',
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_DEBUFF,
+				cost: 5,
+				getCustomInput: async () => {
+					const enemyTargets = getLivingTeamBots(ENEMY);
+					const kvpList = enemyTargets.map(x => ({key:x.name,value:x.id}));
+					const selectedEnemy = await getKVPListSelection(kvpList, 'Select Enemy');
+					if (!selectedEnemy) { return null; } // user cancelled selection
+					const weaknessList = [
+						DEBUFF_TYPES.WEAK_TO_METAL,
+						DEBUFF_TYPES.WEAK_TO_ENERGY,
+						DEBUFF_TYPES.WEAK_TO_RUST,
+						DEBUFF_TYPES.WEAK_TO_MAGNETIC,
+						DEBUFF_TYPES.WEAK_TO_HACK,
+					];
+					const kvpWeakList = weaknessList.map(x => ({key:x,value:x}));
+					const selectedDebuff = await getKVPListSelection(kvpWeakList, 'Select Weakness');
+					if (!selectedDebuff) { return null; }
+					return { selectedEnemy, selectedDebuff };
+				},
+				inputType: INPUT_TYPES.CUSTOM,
+				execute: (customInput)=>{
+					var target = getBot(customInput.selectedEnemy);
+					this.spendEnergy(5);
+					target.debuff(customInput.selectedDebuff, 1);
+					return `${this.name} found a weakness for ${target.name}, applying ${customInput.selectedDebuff}.`;
+				},
+				baseCooldown: 3,
+				currentCooldown: 0,
+			},
+			{
+				name: 'Spot Ambush',
+				description: "Warn ally or self of danger, applying resist buff x2.",
+				id: getId(),
+				abilityType: ABILITY_TYPES.SINGLE_TARGET_BUFF,
+				damageTypes: [DAMAGE_TYPES.ENERGY],
+				cost: 4,
+				inputType: INPUT_TYPES.CUSTOM,
+				getCustomInput: async () => {
+					const allyTargets = getLivingTeamBots(HERO);
+					const kvpList = allyTargets.map(x => ({key:x.name,value:x.id}));
+					const selectedAlly = await getKVPListSelection(kvpList, 'Select Ally');
+					if (!selectedAlly) { return null; } // user cancelled selection
+					const resistList = [
+						BUFF_TYPES.RESIST_METAL,
+						BUFF_TYPES.RESIST_ENERGY,
+						BUFF_TYPES.RESIST_RUST,
+						BUFF_TYPES.RESIST_MAGNETIC,
+						BUFF_TYPES.RESIST_HACK,
+					];
+					const kvpResistList = resistList.map(x => ({key:x,value:x}));
+					const selectedBuff = await getKVPListSelection(kvpResistList, 'Select Resistance');
+					if (!selectedBuff) { return null; }
+					return { selectedAlly, selectedBuff };
+				},
+				execute: (customInput)=>{
+					const target = getBot(customInput.selectedAlly);
+					target.buff(customInput.selectedBuff, 2);
+					this.spendEnergy(4);
+					return `${this.name} warns ${target.name} of ambush, applying ${customInput.selectedBuff} x2.`;
+				},
+				currentCooldown: 0,
+				baseCooldown: 3,
+			},
+			{
+				name: 'Wild Blade',
+				description: 'Select an enemy and attack for 2d12 METAL damage.',
+				id: getId(),
+				abilityType: ABILITY_TYPES.AUTO_ATTACK,
+				inputType: INPUT_TYPES.ENEMY,
+				damageTypes: [DAMAGE_TYPES.METAL],
+				execute: (targetId) =>{
+					var target = getBot(targetId);
+					var damage = getDiceValueTotal(12,2);
+					var result = this.dealDamage(target, damage, DAMAGE_TYPES.METAL);
+					return `${this.name} stabs madly at ${target.name} for ${result.amountApplied} damage.`;
+				},
+				currentCooldown: 0,
+				baseCooldown: 0,
+				cost: 0,
+			},
+		];
+		this.ultimate = {
+			name: 'Infiltration',
+			description: `Completely disrupt enemy team: hack the leader (force reboot and 5d7 + 5 ${DAMAGE_TYPES.HACK} damage to one target) and sow chaos in the ranks (slowing the rest).`,
+			id: getId(),
+			inputType: INPUT_TYPES.ENEMY,
+			abilityType: ABILITY_TYPES.TEAM_DEBUFF,
+			damageTypes: [DAMAGE_TYPES.HACK],
+			execute: (targetId)=> {
+				var target = getBot(targetId);
+				var damage = getDiceValueTotal(7,5) + 5;
+				var damageResult = this.dealDamage(target, damage, DAMAGE_TYPES.HACK);
+				target.debuff(DEBUFF_TYPES.REBOOTING,1);
+				const enemyTargets = getLivingTeamBots(ENEMY);
+				enemyTargets.forEach(t => {
+					if (t.id != targetId) { t.debuff(DEBUFF_TYPES.SLOW, 1); }
+				});
+				return `${this.name} breaks the mind of ${target.name}, dealing ${damageResult.amountApplied} ${DAMAGE_TYPES.HACK} damage and applying ${DEBUFF_TYPES.REBOOTING}.  The rest of the team is shaken, receiving ${DEBUFF_TYPES.SLOW}.`;
+			},
+			currentCooldown: 10,
+			baseCooldown: 10,
+		};
+		this.div = getBotDiv(this);
+		document.getElementById('team-' + team).append(this.div);
+		createReadyBadge(this);
+		this.refreshStatDivs();
+	}
+}
+
+// returns unique id
+const getId = (()=>{ var id = 0; return ()=>{ id++; return id; } })();
+const removeItemFromArray = (item,array)=>{
+	var foundItemIndex = array.indexOf(item);
+	if (foundItemIndex > -1){
+		array.splice(foundItemIndex,1);
+	}
+}
+
+// returns resistance buff matching damage type
+function getAssociatedBuff(damageType){
+	switch (damageType){
+		case DAMAGE_TYPES.METAL:
+			return BUFF_TYPES.RESIST_METAL;
+		case DAMAGE_TYPES.ENERGY:
+			return BUFF_TYPES.RESIST_ENERGY;
+		case DAMAGE_TYPES.RUST:
+			return BUFF_TYPES.RESIST_RUST;
+		case DAMAGE_TYPES.MAGNETIC:
+			return BUFF_TYPES.RESIST_MAGNETIC;
+		case DAMAGE_TYPES.HACK:
+			return BUFF_TYPES.RESIST_HACK;
+	}
+}
+// returns weakness debuff matching damage type
+function getAssociatedDebuff(damageType){
+	switch (damageType){
+		case DAMAGE_TYPES.METAL:
+			return DEBUFF_TYPES.WEAK_TO_METAL;
+		case DAMAGE_TYPES.ENERGY:
+			return DEBUFF_TYPES.WEAK_TO_ENERGY;
+		case DAMAGE_TYPES.RUST:
+			return DEBUFF_TYPES.WEAK_TO_RUST;
+		case DAMAGE_TYPES.MAGNETIC:
+			return DEBUFF_TYPES.WEAK_TO_MAGNETIC;
+		case DAMAGE_TYPES.HACK:
+			return DEBUFF_TYPES.WEAK_TO_HACK;
+	}
+}
+function getDiceValueTotal(type, amount){
+	var result = 0;
+	for (var i = amount; i > 0; i--){
+		result += rollDie(type);
+	}
+	return result;
+}
+function rollDie(type){
+	return Math.floor(Math.random() * type) + 1;
+}
+// rolls base HP for a bot based off of MECHANICAL_POWER and a bit based off of ENERGY
+function rollHp(mechPower,energyLevel){
+	var mechHp = getDiceValueTotal(3, mechPower) + mechPower * 8;
+	var energyHp = getDiceValueTotal(2, energyLevel) + energyLevel * 2;
+	return mechHp + energyHp;
+}
+function rollEnergy(energyLevel){
+	return Math.ceil((energyLevel + rollDie(10)) / 4);
+}
+// an ability check with optional modifier
+function abilityRoll(abilityLevel, modifier = 0){
+	return abilityLevel + rollDie(20) + modifier;
+}
+// runs input logic to get value(s) from user and calls ability's "execute" function with result.
+async function executeAbilityWithInput(selectedAbility, bot){
+	var result = {success: false, message: null};
+	switch (selectedAbility.inputType){
+		case INPUT_TYPES.ENEMY:
+			// get living enemies
+			const validTargets = getTargetable(ENEMY); // hardcoded for now
+			if (!validTargets.length){ result.message = 'No valid targets for this ability'; return result; }
+			const kvpList = validTargets.map(x => ({key: x.name, value: x.id}));
+			var input = await getKVPListSelection(kvpList, 'Choose enemy target');
+			if (!input) {
+				result.message = 'Ability cancelled';
+				return result;
+			}
+			result.message = selectedAbility.execute(input);
+			result.success = true;
+			return result;
+		case INPUT_TYPES.ENEMY_TEAM:
+			console.log('INPUT TYPE WAS ENEMY_TEAM, CURRENTLY ONLY SUPPORTING 2-TEAM COMBAT');
+			result.success = true;
+			result.message = selectedAbility.execute(ENEMY);
+			return result;
+		case INPUT_TYPES.CUSTOM:
+			var input = await selectedAbility.getCustomInput();
+			if (!input) {
+				result.message = 'Ability cancelled';
+				return result;
+			}
+			result.message = selectedAbility.execute(input);
+			result.success = true;
+			return result;
+		case INPUT_TYPES.BUFF:
+			const kvpBuffList = Object.values(BUFF_TYPES).map(x => ({key:x,value:x}));
+			var input = await getKVPListSelection(kvpBuffList, 'Select Buff');
+			if (!input) {
+				result.message = 'Ability cancelled';
+				return result;
+			}
+			result.message = selectedAbility.execute(input);
+			result.success = true;
+			return result;
+		default:
+			console.error('Unsupported input type: ' + selectedAbility.inputType);
+			result.message = 'Unsupported input type';
+			return result;
+	}
+}
+function setMoney(amount){
+	money = amount;
+	document.getElementById('money-count').innerText = amount;
+}
+
+class Item {
+	constructor(type, cost){
+		this.type = type;
+		this.id = getId();
+		this.cost = cost;
+		this.div = createItemDiv(type, this.id, cost);
+		const handleClick = () => { this.click(this); }
+		this.div.addEventListener('click', handleClick);
+	}
+	click(item) {
+		console.log(item);
+		if (item.div.classList.contains('unpurchased')) {
+			if (money >= item.cost){
+				items.push(shopItems.splice(shopItems.find(x => x.id == item.id), 1)[0]);
+				item.div.classList.remove('unpurchased');
+				document.getElementById('shop-items').removeChild(item.div);
+				document.getElementById('inventory-div').appendChild(item.div);
+				setMoney(money - item.cost);
+			} else { setMessage(`${item.type} costs $${item.cost}`); }
+		} else { item.use(item); }
+	}
+	async use(item){
+		if (item.inputRequired){
+			await item.getInput().then(res => item.execute(res)).catch(err => {
+				console.error(err);
+				setMessage(`Use ${item.type} cancelled`);
+			});
+		} else {
+			item.execute();
+		}
+	}
+	dispose(){
+		this.div.remove();
+		let index = items.findIndex(x => x.id == this.id);
+		if (index < 0) { index = shopItems.findIndex(x => x.id == this.id); }
+		items.splice(index, 1);
+	}
+	// to be overridden
+	execute(){}
+}
+
+class MicrowaveBeamItem extends Item {
+	constructor(){
+		const cost = 5;
+		super(ITEM_TYPES.MICROWAVE_BEAM, cost);
+	}
+	inputRequired = true;
+	getInput = async () => {
+		const kvpList = getTargetable(ENEMY).map(x => ({ key: x.name, value: x.id }));
+		const message = `Select an enemy to apply ${DEBUFF_TYPES.OVERHEATED} x2`;
+		return await getKVPListSelection(kvpList, message);
+	}
+	execute(targetId) {
+		const target = getBot(targetId);
+		target.debuff(DEBUFF_TYPES.OVERHEATED, 2);
+		setMessage(`Fired microwaves at ${target.name}, applying ${DEBUFF_TYPES.OVERHEATED} x2`);
+		target.refreshStatDivs();
+		this.dispose();
+	}
+}
+class BatteryItem extends Item {
+	constructor(){
+		const cost = 6;
+		super(ITEM_TYPES.BATTERY, cost);
+	}
+	inputRequired = true;
+	getInput = async () => {
+		const kvpList = getLivingTeamBots(HERO).map(x => ({ key: x.name, value: x.id }));
+		const message = 'Select an ally to gain 5 energy';
+		return await getKVPListSelection(kvpList, message);
+	}
+	execute(targetId) {
+		const target = getBot(targetId);
+		const gainedEnergy = target.gainEnergy(5);
+		target.refreshStatDivs();
+		setMessage(`${target.name} consumed a battery, gaining ${gainedEnergy} energy`)
+		this.dispose();
+	}
+}
+class AccelerantItem extends Item {
+	constructor(){
+		const cost = 4;
+		super(ITEM_TYPES.ACCELERANT, cost);
+	}
+	inputRequired = true;
+	getInput = async () => {
+		const kvpList = getLivingTeamBots(HERO).map(x => ({ key: x.name, value: x.id }));
+		const message = 'Select an ally to boost their "readiness"';
+		return await getKVPListSelection(kvpList, message);
+	}
+	execute(targetId) {
+		getBot(targetId).advanceReady();
+		refreshBadges();
+		setMessage(`Accelerant applied to ${target.name}, boosting their readiness.`)
+		this.dispose();
+	}
+}
+class RepairKitItem extends Item {
+	constructor(){
+		const cost = 11;
+		super(ITEM_TYPES.REPAIR_KIT, cost);
+	}
+	inputRequired = true;
+	getInput = async () => {
+		const kvpList = getLivingTeamBots(HERO).map(x => ({ key: x.name, value: x.id }));
+		const message = 'Select an ally to heal for up to 100 hp';
+		return await getKVPListSelection(kvpList, message);
+	}
+	execute(targetId) {
+		const target = getBot(targetId);
+		const healingReceived = target.heal(100);
+		target.refreshStatDivs();
+		setMessage(`${target.name} used the repair kit and gained ${healingReceived} hp`);
+		this.dispose();
+	}
+}
+class MissileBeaconItem extends Item {
+	constructor(){
+		const cost = 6;
+		super(ITEM_TYPES.MISSILE_BEACON, cost);
+	}
+	inputRequired = true;
+	getInput = async () => {
+		const kvpList = getTargetable(ENEMY).map(x => ({ key: x.name, value: x.id }));
+		const message = `Select an enemy to take 20 ${DAMAGE_TYPES.METAL} damage`;
+		return await getKVPListSelection(kvpList, message);
+	}
+	execute(targetId) {
+		const target = getBot(targetId);
+		const dmgResult = this.dealDamage(target, 20, DAMAGE_TYPES.METAL);
+		setMessage(`Missile struck ${target.name} for ${dmgResult.amountApplied} ${DAMAGE_TYPES.METAL} damage`);
+		target.refreshStatDivs();
+		this.dispose();
+	}
+}
+class HardlightShieldItem extends Item {
+	constructor(){
+		const cost = 4;
+		super(ITEM_TYPES.HARDLIGHT_SHIELD, cost);
+	}
+	inputRequired = true;
+	getInput = async () => {
+		const kvpList = getLivingTeamBots(HERO).map(x => ({ key: x.name, value: x.id }));
+		const message = `Select an ally to gain all resistances x1 and ${BUFF_TYPES.TAUNT} x1`;
+		return await getKVPListSelection(kvpList, message);
+	}
+	execute(targetId) {
+		const target = getBot(targetId);
+		target.buff(BUFF_TYPES.RESIST_METAL, 1);
+		target.buff(BUFF_TYPES.RESIST_ENERGY, 1);
+		target.buff(BUFF_TYPES.RESIST_RUST, 1);
+		target.buff(BUFF_TYPES.RESIST_HACK, 1);
+		target.buff(BUFF_TYPES.RESIST_MAGNETIC, 1);
+		target.buff(BUFF_TYPES.TAUNT, 1);
+		target.refreshStatDivs();
+		setMessage(`Hardlight shield set up for ${target.name}, granting all resistances and ${BUFF_TYPES.TAUNT} x1`);
+		this.dispose();
+	}
+}
+function createItemDiv(type, itemId, cost){
+	const itemDiv = document.createElement('div');
+	itemDiv.classList.add('item');
+	switch(type){
+		case ITEM_TYPES.BATTERY:
+			itemDiv.innerText = '[+ -]';
+			itemDiv.title = 'Battery';
+			break;
+		case ITEM_TYPES.REPAIR_KIT:
+			itemDiv.innerText = '>==C';
+			itemDiv.title = 'Repair Kit';
+			break;
+		case ITEM_TYPES.HARDLIGHT_SHIELD:
+			itemDiv.innerText = `\\//`;
+			itemDiv.title = 'Hardlight Shield';
+			break;
+		case ITEM_TYPES.MISSILE_BEACON:
+			itemDiv.innerText = '|*|';
+			itemDiv.title = 'Missile Beacon';
+			break;
+		case ITEM_TYPES.ACCELERANT:
+			itemDiv.innerText = '|~|';
+			itemDiv.title = 'Accelerant';
+			break;
+		case ITEM_TYPES.MICROWAVE_BEAM:
+			itemDiv.innerText = '<)))';
+			itemDiv.title = 'Microwave Beam';
+			break;
+		case UPGRADE_TYPES.RUSTED_DAGGER:
+			itemDiv.innerText = '<vv|=';
+			itemDiv.title = 'Laser Sword';
+			break;
+		case UPGRADE_TYPES.LASER_SWORD:
+			itemDiv.innerText = '<===|=';
+			itemDiv.title = 'Laser Sword';
+			break;
+		case UPGRADE_TYPES.SUPER_SPEED:
+			itemDiv.innerText = 'C8H10N402';
+			itemDiv.title = 'Super Speed';
+			break;
+		default:
+			console.error(`unknown item type: ${type}`);
+	}
+	itemDiv.title += ` $${cost}`;
+	itemDiv.id = 'item-' + itemId;
+	return itemDiv;
+}
+
+class Upgrade {
+	constructor(type, cost){
+		this.type = type;
+		this.cost = cost;
+		this.id = getId();
+		this.div = createItemDiv(type, this.id, cost);
+		const handleClick = () => { this.purchase(this); }
+		this.div.addEventListener('click', handleClick);
+	}
+	async purchase(self){
+		if (self.cost <= money){
+			const options = getLivingTeamBots(HERO).map(x => ({ key: x.name, value: x.id }));
+			const selection = await getKVPListSelection(options, `Select ally to receive ${self.type} upgrade`);
+			if (selection) {
+				self.apply(getBot(selection));
+			}
+			else { setMessage('User cancelled selection'); }
+		} else {
+			setMessage(`This ${self.type} upgrade costs ${self.cost}`);
+		}
+	}
+}
+
+class UpgradeSuperSpeed extends Upgrade {
+	constructor(){
+		super(UPGRADE_TYPES.SUPER_SPEED, 21);
+		this.text = `Adds 12 to speed`;
+	}
+	apply(bot){
+		setMoney(money - this.cost);
+		bot.speed += 12;
+	}
+}
+class UpgradeLaserSword extends Upgrade {
+	constructor(){
+		super(UPGRADE_TYPES.LASER_SWORD, 18);
+		this.text = `Replaces autoattack with "Laser Sword"`;
+	}
+	apply(bot){
+		setMoney(money - this.cost);
+		const currentAutoattack = bot.abilities.find(x => x.abilityType == ABILITY_TYPES.AUTO_ATTACK);
+		currentAutoattack.name = "Laser Sword";
+		currentAutoattack.description = `Swing a mighty sword crafted of lasers for 4d8 ${DAMAGE_TYPES.ENERGY} damage`;
+		currentAutoattack.damageTypes = [DAMAGE_TYPES.ENERGY];
+		currentAutoattack.execute = (targetId) => {
+			const target = getBot(targetId);
+			const damage = getDiceValueTotal(8, 4);
+			const result = this.dealDamage(target, damage, DAMAGE_TYPES.ENERGY);
+			return `${this.name} slashes at ${target.name} with an energy sword, dealing ${result.amountApplied} damage.`;
+		}
+		const newDiv = getAbilityDiv(currentAutoattack, bot);
+		const oldDiv = document.getElementById('ability-div-' + currentAutoattack.id);
+		oldDiv.replaceWith(newDiv);
+	}
+}
+class UpgradeRustedDagger extends Upgrade {
+	constructor(){
+		super(UPGRADE_TYPES.RUSTED_DAGGER, 16);
+		this.text = `Replaces autoattack with "Rusted Dagger"`;
+	}
+	apply(bot){
+		setMoney(money - this.cost);
+		const currentAutoattack = bot.abilities.find(x => x.abilityType == ABILITY_TYPES.AUTO_ATTACK);
+		currentAutoattack.name = "Rusted Dagger";
+		currentAutoattack.description = `Stab a target for 1d10 ${DAMAGE_TYPES.METAL} damage and cause them to take 1d6 (1d3 vs bosses) ${DAMAGE_TYPES.RUST} damage at the start of their turns.`;
+		currentAutoattack.damageTypes = [DAMAGE_TYPES.METAL, DAMAGE_TYPES.RUST];
+		currentAutoattack.execute = (targetId) => {
+			const target = getBot(targetId);
+			const damage = rollDie(10);
+			const result = bot.dealDamage(target, damage, DAMAGE_TYPES.METAL);
+			const dieSize = target.isBoss ? 3 : 6;
+			target.startOfTurn.push({
+				execute: function (rustTarget) {
+					const dmg = rollDie(dieSize);
+					const dmgResult = bot.dealDamage(rustTarget, dmg, DAMAGE_TYPES.RUST);
+				},
+				id: currentAutoattack.id
+			})
+			return `${bot.name} slashes at ${target.name} with a rusted dagger, dealing ${result.amountApplied} damage and causing them to take 1d${dieSize} ${DAMAGE_TYPES.RUST} damage at the start of their turns.`;
+		}
+		const newDiv = getAbilityDiv(currentAutoattack, bot);
+		const oldDiv = document.getElementById('ability-div-' + currentAutoattack.id);
+		oldDiv.replaceWith(newDiv);
+	}
+
+}
+
+// gets a key-value-pair selection from user. optional title prop allowed in list items.
+function getKVPListSelection(kvpList, msg) {
+	return new Promise((res, rej) => {
+		const list = document.createElement('select');
+		list.id = 'kvp-list';
+		kvpList.forEach(kvp => {
+			const opt = document.createElement('option');
+			opt.value = kvp.value;
+			opt.innerText = kvp.key;
+			if (kvp.title) { opt.title = kvp.title; }
+			list.append(opt);
+		})
+		const options = {
+			onConfirm: () => {
+				const selectedVal = document.getElementById('kvp-list').value;
+				if (selectedVal) {
+					closeModal();
+					res(selectedVal);
+				}
+			},
+			onCancel: () => {
+				closeModal();
+				res(null);
+			}
+		}
+		openModal(msg, list, options);
+	})
+}
+// gets a number selection from user.  options include min, max, and step
+function getNumberSelection(msg, options){
+	return new Promise((res, rej) => {
+		const input = document.createElement('input');
+		input.id = 'number-input';
+		input.type = 'number';
+		if (options.min) { input.min = options.min; }
+		if (options.max) { input.max = options.max; }
+		if (options.step) { input.step = options.step; }
+		const modalOptions = {
+			onConfirm: () => {
+				const val = document.getElementById('number-input').value;
+				if (val != null && val != undefined) {
+					closeModal();
+					res(val);
+				}
+			},
+			onCancel: () => {
+				closeModal();
+				res(null);
+			}
+		}
+		openModal(msg, input, modalOptions);
+	})
+}
+// gets a bool selection from user
+function getBoolSelection(msg, options){
+	return new Promise((res, rej) => {
+		const input = document.createElement('input');
+		input.id = 'bool-input';
+		input.type = 'checkbox';
+		const modalOptions = {
+			onConfirm: () => {
+				const val = document.getElementById('bool-input').value;
+				closeModal();
+				res(val);
+			},
+			onCancel: () => {
+				closeModal();
+				rej();
+			}
+		}
+	})
+}
+// returns all valid targets in team
+function getTargetable(team){
+	const livingBots = getLivingTeamBots(team)
+	var validTargets = livingBots
+		.slice()
+		.sort((a,b)=>a.hp - b.hp); // least life
+	if (validTargets.some(b => b.buffs.includes(BUFF_TYPES.TAUNT))) {
+		validTargets = validTargets.filter(b => b.buffs.includes(BUFF_TYPES.TAUNT) || b.debuffs.includes(DEBUFF_TYPES.TARGET_LOCK));
+	} else {
+		validTargets = validTargets.filter(b => !b.buffs.includes(BUFF_TYPES.STEALTH) || b.debuffs.includes(DEBUFF_TYPES.TARGET_LOCK));
+	}
+	return validTargets;
+}
+function getLivingTeamBots(team){
+	return bots.filter(b => b.team == team && b.hp > 0);
+}
+function getBotDiv(bot){
+	var result = document.createElement('div');
+	result.id = bot.id + '-div';
+	result.classList.add('bot-div', 'inactive');
+	var sprite = getBotSprite(bot);
+	var statBarsDiv = getStatBarsDiv(bot);
+	const ultimateDiv = getUltimateDiv(bot);
+	const deathDiv = getDeathDiv(bot);
+	const rebootSpinner = getRebootingSpinner();
+	if (bot.isEnemy) {
+		result.append(sprite, statBarsDiv, ultimateDiv, deathDiv, rebootSpinner);
+	} else {
+		var abilityRow = getAbilityRow(bot);
+		result.append(sprite, statBarsDiv, abilityRow, ultimateDiv, deathDiv, rebootSpinner);
+	}
+	return result;
+}
+function getRebootingSpinner(){
+	const spinner = document.createElement('div');
+	spinner.classList.add('reboot-spinner');
+	return spinner;
+}
+function getDeathDiv(bot){
+	const div = document.createElement('div');
+	div.classList.add('bsod');
+	const winTitle = document.createElement('p');
+	winTitle.innerText = 'Windows';
+	winTitle.classList.add('bsod-title');
+	const p1 = document.createElement('p');
+	p1.innerText = 'An error has occurred.  To continue:';
+	const p2 = document.createElement('p');
+	p2.innerText = 'Press Enter to return to Windows, or';
+	const p3 = document.createElement('p');
+	p3.innerText = 'Press CTRL+ALT+DEL to restart your computer.  If you do this, you will lose any unsaved information in all open applications.'
+	const p4 = document.createElement('p');
+	p4.innerText = 'Error: 0E : 024F : ' + getRandomError();
+	const p5 = document.createElement('p');
+	p5.innerText = 'Press any key to continue';
+	div.append(winTitle,p1,p2,p3,p4,p5);
+	return div;
+}
+function getUltimateDiv(bot){
+	const div = document.createElement('div');
+	div.id = bot.ultimate.id + '-ultimate-div';
+	div.classList.add('ultimate-div');
+	div.title = bot.ultimate.description;
+	var cooldown = document.createElement('div');
+	cooldown.id = 'cooldown-div-' + bot.ultimate.id;
+	cooldown.classList.add('cooldown-div');
+	cooldown.innerText = bot.ultimate.currentCooldown;
+	var aName = document.createElement('div');
+	aName.classList.add('ability-name');
+	aName.innerText = bot.ultimate.name;
+	div.append(aName, cooldown);
+	div.addEventListener('click', function(){ bot.useAbility(bot.ultimate.id); });
+	return div;
+}
+function getAbilityRow(bot){
+	var all = bot.abilities.map(a => getAbilityDiv(a, bot));
+	all.push(getRechargeDiv(bot));
+	var div = document.createElement('div');
+	div.classList.add('ability-row');
+	div.append(...all);
+	return div;
+}
+function getAbilityDiv(ability, bot){
+	var abilityDiv = document.createElement('div');
+	abilityDiv.id = 'ability-div-' + ability.id;
+	abilityDiv.classList.add('ability-div');
+	if (ability.abilityType == ABILITY_TYPES.AUTO_ATTACK) { abilityDiv.classList.add('auto-attack-div'); }
+	abilityDiv.title = ability.description + `  Cost: ${ability.cost == 0 ? 'FREE' : ability.cost}, Cooldown: ${ability.baseCooldown}.`;
+	var aName = document.createElement('div');
+	aName.classList.add('ability-name');
+	aName.innerText = ability.name;
+	var cooldown = document.createElement('div');
+	cooldown.id = 'cooldown-div-' + ability.id;
+	cooldown.classList.add('cooldown-div');
+	cooldown.innerText = ability.currentCooldown;
+	abilityDiv.append(aName,cooldown);
+	abilityDiv.addEventListener('click', ()=>{
+		if (getActiveBot()?.id == bot.id) {
+			bot.useAbility(ability.id);
+		} else {
+			setMessage(`It is not ${bot.name}'s turn`);
+		}
+	})
+	return abilityDiv;
+}
+function getRechargeDiv(bot){
+	switch (bot.type){
+		default:
+			var rechargeDiv = document.createElement('div');
+			rechargeDiv.classList.add('recharge-div');
+			rechargeDiv.title = 'Rest for a round, rolling to regain energy.';
+			var aName = document.createElement('div');
+			aName.classList.add('ability-name');
+			aName.innerText = 'Recharge';
+			rechargeDiv.append(aName);
+			rechargeDiv.addEventListener('click', function(){
+				if (getActiveBot()?.id == bot.id) {
+					bot.recharge();
+				} else {
+					setMessage(`It is not ${bot.name}'s turn`);
+				}
+			});
+			return rechargeDiv;
+	}
+}
+function getBotSprite(bot){
+	var result = document.createElement('div');
+	result.classList.add('bot-sprite');
+	result.innerText = bot.name + (bot.passive ? ' *' : '');
+	if (bot.passive) { result.title = bot.passive; }
+	return result;
+}
+function getStatBarsDiv(bot){;
+	var result = document.createElement('div');
+	result.id = bot.id + '-stat-div';
+	result.classList.add('stat-div');
+	var hpDiv = document.createElement('div');
+	hpDiv.classList.add('hp-div');
+	var hpBorder = document.createElement('div');
+	hpBorder.classList.add('stat-border');
+	var hpBar = document.createElement('div');
+	hpBar.classList.add('hp-bar');
+	hpBorder.append(hpBar);
+	var hpReadout = document.createElement('div');
+	hpReadout.classList.add('stat-readout');
+	hpReadout.innerText = bot.hp + '/' + bot.maxHp;
+	hpDiv.append(hpBorder, hpReadout);
+	var energyDiv = document.createElement('div');
+	energyDiv.classList.add('energy-div');
+	var energyBorder = document.createElement('div');
+	energyBorder.classList.add('stat-border');
+	var energyBar = document.createElement('div');
+	energyBar.classList.add('energy-bar');
+	energyBorder.append(energyBar);
+	var energyReadout = document.createElement('div');
+	energyReadout.classList.add('stat-readout');
+	energyReadout.innerText = bot.energy + '/' + bot.maxEnergy;
+	energyDiv.append(energyBorder, energyReadout);
+	const symbolDiv = document.createElement('div');
+	symbolDiv.classList.add('symbol-div');
+	result.append(hpDiv, energyDiv, symbolDiv);
+	return result;
+}
+function getBot(id){ return bots.find(b => b.id == id); }
+// displays buff/debuff icons in bot div
+function setSymbols(symbolDiv, bot){
+	const symbols = [];
+	var buffs = bot.buffs.reduce((acc,val)=>{
+		const existingInAcc = acc.find(x => x.name == val);
+		if (existingInAcc) { existingInAcc.count ++; }
+		else { acc.push({name: val, count: 1}); }
+		return acc;
+	}, []);
+	var debuffs = bot.debuffs.reduce((acc,val)=>{
+		const existingInAcc = acc.find(x => x.name == val);
+		if (existingInAcc) { existingInAcc.count ++; }
+		else { acc.push({name: val, count: 1}); }
+		return acc;
+	}, []);
+	buffs.concat(debuffs).forEach(sym => {
+		symbols.push(getSymbol(sym.name, sym.count));
+	})
+	symbolDiv.append(symbols.join(','));
+}
+// returns symbol matching buff/debuff
+function getSymbol(symbol, count){
+	switch (symbol){
+		case BUFF_TYPES.TAUNT:
+			return 'TNTx' + count;
+		case BUFF_TYPES.STEALTH:
+			return 'STLTHx' + count;
+		case BUFF_TYPES.FAST:
+			return 'FSTx' + count;
+		case BUFF_TYPES.RESIST_METAL:
+			return 'RS-MTLx' + count;
+		case BUFF_TYPES.RESIST_ENERGY:
+			return 'RS-ENGx' + count;
+		case BUFF_TYPES.RESIST_RUST:
+			return 'RS-RSTx' + count;
+		case BUFF_TYPES.RESIST_MAGNETIC:
+			return 'RS-MAGx' + count;
+		case BUFF_TYPES.RESIST_HACK:
+			return 'RS-HAKx' + count;
+		case DEBUFF_TYPES.TARGET_LOCK:
+			return 'TGT-LKx' + count;
+		case DEBUFF_TYPES.SLOW:
+			return 'SLWx' + count;
+		case DEBUFF_TYPES.REBOOTING:
+			return 'RBTNGx' + count;
+		case DEBUFF_TYPES.OVERHEATED:
+			return 'OVHTx' + count;
+		case DEBUFF_TYPES.WEAK_TO_METAL:
+			return 'WK-MTLx' + count;
+		case DEBUFF_TYPES.WEAK_TO_ENERGY:
+			return 'WK-ENGx' + count;
+		case DEBUFF_TYPES.WEAK_TO_RUST:
+			return 'WK-RSTx' + count;
+		case DEBUFF_TYPES.WEAK_TO_MAGNETIC:
+			return 'WK-MAGx' + count;
+		case DEBUFF_TYPES.WEAK_TO_HACK:
+			return 'WK-HAKx' + count;
+	}
+}
+function refreshAllBotUis(){ bots.forEach(b => { b.refreshUi(); }) }
+// increases "ready" stats of all bots and updates UI accordingly
+function advanceReadyAll(){
+	bots.forEach(b => {
+		if (b.hp > 0){
+			b.advanceReady();
+		}
+	})
+	refreshBadges();
+}
+// updates turn-order badges UI
+function refreshBadges(){
+	const baseWidth = document.getElementById('base-div').clientWidth;
+	const badgeWidth = 75;
+	bots.forEach(b => {
+		if (b.hp > 0) {
+			const badge = document.getElementById(b.id + '-badge');
+			const percentOfReadyThreshHold = (b.ready / READY_THRESHOLD);
+			const left = percentOfReadyThreshHold * (baseWidth - badgeWidth);
+			//badge.style.left = (Math.min(READY_THRESHOLD + 25, b.ready) * 3) + 'px';
+			badge.style.left = (Math.min(left, baseWidth - badgeWidth)) + 'px';
+		}
+	})
+}
+function createReadyBadge(bot){
+	let badge = document.createElement('div');
+	badge.classList.add('badge-div');
+	badge.id = bot.id + '-badge';
+	badge.innerText = bot.name;
+	let badgeBar = document.createElement('div');
+	badgeBar.id = bot.id + '-badge-bar';
+	badgeBar.classList.add('badge-bar');
+	badgeBar.append(badge);
+	const readyBar = document.getElementById(`team-${bot.team}-ready-bar`);
+	readyBar.append(badgeBar);
+}
+// returns bot whose turn it is
+function getActiveBot(){
+	if (!bots.some(b => b.isReady)) { return null; }
+	var sorted = bots
+		.filter(b => b.hp > 0)
+		.sort((a,b) => b.ready - a.ready);
+	return sorted[0];
+}
+async function start(){
+	// get boss selection from user
+	const bossList = Object.values(BOSS_TYPES).map(x => ({ key: x, value: x }));;
+	bossData.bossType = await getKVPListSelection(bossList, 'Select which boss you will face this game');
+	
+	document.getElementById('leave-shop-button').addEventListener('click', newRound);
+	// get bot selections from user
+	while (bots.length < teamSize) {
+		const kvpList = Object.values(BOT_TYPES).filter(x => !bots.some(b => b.type == x)).map(x => ({ key: x, value: x, title: getBotDescription(x) }));
+		console.log(kvpList);
+		const selection = await getKVPListSelection(kvpList, `Select a new Bot for your team of ${teamSize}`);
+		bots.push(getNewBot(selection));
+	}
+	spawnRandomBaddies();
+	newTurn();
+}
+function getNewBot(type){
+	switch (type) {
+		case BOT_TYPES.HULK:
+			return new Hulk();
+		case BOT_TYPES.ORACLE:
+			return new Oracle();
+		case BOT_TYPES.HUNTER:
+			return new Hunter();
+		case BOT_TYPES.SCOUT:
+			return new Scout();
+		case BOT_TYPES.ENGINE:
+			return new Engine();
+		case BOT_TYPES.RAGER:
+			return new Rager();
+		case BOT_TYPES.GUARDIAN:
+			return new Guardian();
+		case BOT_TYPES.OVERLORD:
+			return new Overlord();
+		default:
+			setMessage('Invalid bot selected');
+			break;
+	}
+}
+function spawnRandomBaddies(){
+	let regularEnemyCount = 3;
+	if (roundData.currentRound == roundData.maxRounds) {
+		// face boss for last round
+		regularEnemyCount = 2;
+		bots.push(createEnemy(bossData.bossType));
+	}
+	let options = Object.values(ENEMY_TYPES);
+	for (let i = 0; i < regularEnemyCount; i ++) {
+		const newType = options.splice(getRandomNum(options.length) - 1, 1)[0];
+		bots.push(createEnemy(newType));
+	}
+}
+function createEnemy(enemyType){
+	switch(enemyType){
+		case ENEMY_TYPES.NUISANCE:
+			return new Nuisance();
+		case ENEMY_TYPES.BUTLER:
+			return new Butler();
+		case ENEMY_TYPES.STABBER:
+			return new Stabber();
+		case ENEMY_TYPES.OPPRESSOR:
+			return new Oppressor();
+		case ENEMY_TYPES.GRUNT:
+			return new Grunt();
+		case BOSS_TYPES.STEEL_TITAN:
+			return new SteelTitan();
+	}
+}
+async function newRound(){
+	roundData.currentRound ++;
+	const deadBotIds = [];
+	bots.filter(x => x.hp < 1).forEach(deadBot => {
+		deadBot.div.remove();
+		deadBotIds.push(deadBot.id);
+	})
+	console.log(deadBotIds, bots);
+	deadBotIds.forEach(id => bots.splice(bots.findIndex(x => x.id == id), 1))
+	console.log(bots);
+	const livesCountSpan = document.getElementById('lives-count');
+	let lives = parseInt(livesCountSpan.value);
+	if (getLivingTeamBots(HERO).length < teamSize && lives > 0) {
+		let botOptionsRemain = true;
+		// get bot selections from users
+		while (bots.length < teamSize && lives > 0 && botOptionsRemain) {
+			const botTypeOptions = Object.values(BOT_TYPES).filter(x => !bots.some(b => b.type == x) && !deadAllies.some(b => b.type == x));
+			if (botTypeOptions.length < 1) { botOptionsRemain = false; continue; }
+			const kvpList = botTypeOptions.map(x => ({ key: x, value: x, title: getBotDescription(x) }));
+			const selection = await getKVPListSelection(kvpList, `Select a new Bot for your team of ${teamSize}`);
+			bots.push(getNewBot(selection));
+			lives--;
+		}
+
+	}
+	livesCountSpan.value = lives;
+	document.getElementById('base-div').classList.remove('shop-open');
+	spawnRandomBaddies();
+	newTurn();
+}
+const advanceSpeed = 300;
+// loops advancing all bots until an active bot is decided.
+async function newTurn(){
+	refreshBadges();
+	let activeBot = getActiveBot();
+	while (activeBot == null){
+		advanceReadyAll();
+		activeBot = getActiveBot();
+		await sleep(advanceSpeed);
+	}
+	const botDiv = document.getElementById(activeBot.id + '-div');
+	botDiv.classList.remove('inactive');
+	botDiv.classList.add('active');
+	if (activeBot.startOfTurn.length){ activeBot.startOfTurn.forEach(x => x.execute(activeBot)); }
+	if (activeBot.hp == 0) {
+		// bot died at start of turn
+		setMessage(`${activeBot.name} died at the start of their turn.`);
+		activeBot.turnCompleted();
+	}
+	if (activeBot.debuffs.includes(DEBUFF_TYPES.REBOOTING)) { activeBot.reboot(); }
+	else if (activeBot.isEnemy) { await activeBot.takeTurn(); }
+}
+function turnCompleted(){
+	if ([HERO, ENEMY].every(t => bots.filter(b => b.team == t && b.hp > 0).length > 0)) {
+		// both teams have living members
+		newTurn();
+	} else {
+		const winningTeam = [HERO, ENEMY].find(t => bots.some(b => b.team == t && b.hp > 0));
+		if (winningTeam == HERO){
+			resolveWin();
+		} else {
+			setMessage('Your team was destroyed.  You lose.');
+		}
+	}
+}
+function resolveWin(){
+	const roundSpan = document.getElementById('round-count');
+	if (roundData.currentRound == roundData.maxRounds) {
+		setMessage(`You have defeated the ${bossData.bossType}!  Victory is yours!`)
+	} else {
+		setMessage(`You beat round ${roundData.currentRound}!  Peruse the shop before your next battle...`);
+		roundSpan.innerText = roundData.currentRound + 1;
+		refreshShop();
+	}
+}
+function refreshShop(){
+	shopItems.forEach(x => x.dispose());
+	document.getElementById('base-div').classList.add('shop-open');
+	const shopItemDiv = document.getElementById('shop-items');
+	for (let i = 0; i < 4; i++){
+		const itemType = getRandomVal(Object.values(ITEM_TYPES));
+		let item = getNewItem(itemType);
+		item.div.classList.add('unpurchased');
+		shopItemDiv.append(item.div);
+		shopItems.push(item);
+	}
+	const randomUpgrade = getRandomVal(Object.values(UPGRADE_TYPES));
+	const upgrade = getNewUpgrade(randomUpgrade);
+	upgrade.div.classList.add('unpurchased');
+	shopItemDiv.append(upgrade.div);
+	shopItems.push(upgrade);
+}
+function getNewItem(itemType){
+	switch (itemType){
+		case ITEM_TYPES.BATTERY:
+			return new BatteryItem();
+		case ITEM_TYPES.ACCELERANT:
+			return new AccelerantItem();
+		case ITEM_TYPES.HARDLIGHT_SHIELD:
+			return new HardlightShieldItem();
+		case ITEM_TYPES.MISSILE_BEACON:
+			return new MissileBeaconItem();
+		case ITEM_TYPES.REPAIR_KIT:
+			return new RepairKitItem();
+		case ITEM_TYPES.MICROWAVE_BEAM:
+			return new MicrowaveBeamItem();
+	}
+}
+function getNewUpgrade(upgradeType){
+	switch (upgradeType){
+		case UPGRADE_TYPES.RUSTED_DAGGER:
+			return new UpgradeRustedDagger();
+		case UPGRADE_TYPES.LASER_SWORD:
+			return new UpgradeLaserSword();
+		case UPGRADE_TYPES.SUPER_SPEED:
+			return new UpgradeSuperSpeed();
+	}
+}
+function getBotDescription(type){
+	switch(type){
+		case BOT_TYPES.HULK:
+			return `A heavy hitter that likes getting hit.`;
+		case BOT_TYPES.ORACLE:
+			return `An offensive debuffer, sets up powerful combos.`;
+		case BOT_TYPES.HUNTER:
+			return `A FAST bot: consistent and best when focused.`;
+		case BOT_TYPES.SCOUT:
+			return `A flexible support bot: always effective, never useless.`;
+		case BOT_TYPES.ENGINE:
+			return `Keeps its allies energized and its enemies jolted.`;
+		case BOT_TYPES.RAGER:
+			return `Deals self damage and invites attacks, but dishes out some hurt.`;
+		case BOT_TYPES.GUARDIAN:
+			return `Tanks damage, removes debuffs.  Can't go wrong.`;
+		case BOT_TYPES.OVERLORD:
+			return `Creates an army of minions that deal plenty of damage.`;
+	}
+}
+
+// options include: hideConfirm, confirmText, onConfirm, onCancel, cancelText, showBacking
+function openModal(title, body, options = {}){
+	const modal = document.getElementById('popup-modal');
+	document.getElementById('popup-modal-header').innerText = title;
+	const modalBody = document.getElementById('popup-modal-body');
+	removeChildren(modalBody);
+	modalBody.append(body);
+	const footer = document.getElementById('popup-modal-footer');
+	removeChildren(footer);
+	if (!options.hideConfirm){
+		const confirmButton = document.createElement('button');
+		confirmButton.innerText = options.confirmText ?? 'OK';
+		if (options.onConfirm){
+			confirmButton.addEventListener('click', options.onConfirm);
+		} else {
+			confirmButton.addEventListener('click', closeModal);
+		}
+		footer.append(confirmButton);
+	}
+	if (options.onCancel){
+		const cancelButton = document.createElement('button');
+		cancelButton.innerText = options.cancelText ?? 'Cancel';
+		cancelButton.addEventListener('click', options.onCancel);
+		footer.append(cancelButton);
+	}
+	if (options.showBacking) { document.getElementById('popup-backing').classList.add('opaque'); }
+	document.getElementById('popup-backing').classList.add('open');
+}
+function closeModal(){ document.getElementById('popup-backing').classList.remove('open'); }
+function removeChildren(elem) {
+	while (elem.childNodes.length){
+		elem.childNodes[0].remove();
+	}
+}
+// shows damage animation on provided element
+function damageFlash(element){
+	element.classList.add('damage');
+	setTimeout(()=> { element.classList.remove('damage'); }, 600)
+}
+const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay));
+const getRandomVal = (arr)=>{ return arr[getRandomNum(arr.length) - 1]; };
+const getRandomNum = (num)=>{ return Math.floor(Math.random() * num) + 1; };
+const getRandomError = () => {
+   return (
+	Math.random().toString(36).substring(2, 6) +
+	Math.random().toString(36).substring(2, 6)
+	).toUpperCase();
+}
+const setMessage = (text) => {
+	document.getElementById('message-div').innerText = text;
+	console.log('message: ' + text);
+}
+const flipCoin = () => { return getRandomNum(2) == 1; }
+
+setMoney(5);
+start();
+
+</script>
+</html>
